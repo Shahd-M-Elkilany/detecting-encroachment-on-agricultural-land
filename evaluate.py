@@ -73,25 +73,45 @@ def evaluate_split(split, model, threshold, apply_consistency=True, calibrator=N
 
     if apply_consistency:
         # ── Step 2a: temporal consistency filter ─────────────────────────────
-        # Dampen scores when ≥ MAJORITY_THRESH pairs for a tile all flag
-        # positive — indicates seasonal spectral drift, not true onset.
-        # Safe for real-positive tiles: their neg→pos pair scores high while
-        # subsequent pos→pos pairs score low (t1_is_pos=1), so the majority
-        # condition almost never triggers for encroached tiles.
-        tile_probs = defaultdict(list)
+        # Mirrors predict.py's apply_temporal_consistency exactly — uses t1_lbl
+        # (inferable from filename at inference time) rather than true_label.
+        #
+        # Case 1 — established-encroachment drift:
+        #   ≥ MAJORITY_THRESH pos→pos pairs (t1_lbl="pos") score above threshold
+        #   → dampen only those pos→pos pairs; leave the neg→pos signal intact.
+        # Case 2 — all-negative tile with global drift:
+        #   No pos→pos pairs and every neg→neg pair fires → dampen all.
+        tile_probs   = defaultdict(list)
+        tile_t1_lbls = defaultdict(list)
         for r in raw:
             tile_probs[r["tile_id"]].append(r["prob"])
+            tile_t1_lbls[r["tile_id"]].append(r["t1_lbl"])
 
         for r in raw:
             tid = r["tile_id"]
-            valid = [p for p in tile_probs[tid] if not np.isnan(p)]
-            n_flagged = sum(1 for p in valid if p >= threshold)
-            majority_flagged = n_flagged >= MAJORITY_THRESH and len(valid) > 1
-            if majority_flagged and r["true_label"] == 0 and not np.isnan(r["prob"]):
-                r["prob"] = round(r["prob"] * SEASONAL_DAMPEN, 4)
-                r["consistency_dampened"] = True
-            else:
-                r["consistency_dampened"] = False
+            probs      = [p for p in tile_probs[tid] if not np.isnan(p)]
+            is_pos_vec = [lbl == "pos" for lbl in tile_t1_lbls[tid]]
+
+            n_pos_pairs  = sum(is_pos_vec)
+            n_neg_pairs  = len(probs) - n_pos_pairs
+            n_total_fire = sum(p >= threshold for p in probs)
+            n_pos_fire   = sum(p >= threshold for p, ip in zip(probs, is_pos_vec) if ip)
+            n_neg_fire   = sum(p >= threshold for p, ip in zip(probs, is_pos_vec) if not ip)
+
+            # Case 1: encroachment tile — ≥1 pos→pos fires AND total fires ≥ MAJORITY_THRESH
+            # Dampen only the pos→pos pairs; neg→pos signal stays intact.
+            case1 = n_pos_pairs > 0 and n_pos_fire >= 1 and n_total_fire >= MAJORITY_THRESH
+            # Case 2: all-negative tile — majority of neg→neg pairs fire. Dampen all.
+            case2 = n_pos_pairs == 0 and n_neg_pairs > 1 and n_neg_fire >= MAJORITY_THRESH
+
+            r["consistency_dampened"] = False
+            if not np.isnan(r["prob"]):
+                if case1 and r["t1_lbl"] == "pos":
+                    r["prob"] = round(r["prob"] * SEASONAL_DAMPEN, 4)
+                    r["consistency_dampened"] = True
+                elif case2:
+                    r["prob"] = round(r["prob"] * SEASONAL_DAMPEN, 4)
+                    r["consistency_dampened"] = True
 
     # ── Step 3: build final rows ──────────────────────────────────────────────
     rows = []

@@ -89,11 +89,55 @@ def score_pairs(
     return scores
 
 
-def apply_temporal_consistency(scores: list[float], threshold: float) -> list[float]:
-    """Dampen all scores if ≥ MAJORITY_THRESH pairs exceed the threshold."""
-    n_positive = sum(s >= threshold for s in scores)
-    if n_positive >= MAJORITY_THRESH:
-        scores = [s * SEASONAL_DAMPEN for s in scores]
+def apply_temporal_consistency(
+    scores: list[float],
+    threshold: float,
+    t1_is_pos_flags: list[bool],
+) -> list[float]:
+    """
+    Suppress seasonal-drift false positives while preserving genuine signals.
+
+    Case 1 — drift in established-encroachment windows:
+        If ≥ MAJORITY_THRESH pos→pos pairs (t1_is_pos=True) score above the
+        threshold, the 'already encroached' windows show anomalous spectral
+        change (seasonal drift rather than new encroachment). Dampen only
+        those pos→pos pairs; leave the primary neg→pos signal pair intact.
+
+    Case 2 — all-negative tile with global drift:
+        If there are no pos→pos pairs (all transitions are neg→neg) and
+        every pair fires above the threshold, the whole tile is drifting.
+        Dampen all pairs.
+    """
+    if len(scores) <= 1:
+        return scores
+
+    n_pos_pairs  = sum(t1_is_pos_flags)
+    n_neg_pairs  = len(scores) - n_pos_pairs
+    n_total_fire = sum(s >= threshold for s in scores)
+    n_pos_fire   = sum(
+        s >= threshold for s, is_pos in zip(scores, t1_is_pos_flags) if is_pos
+    )
+    n_neg_fire   = sum(
+        s >= threshold for s, is_pos in zip(scores, t1_is_pos_flags) if not is_pos
+    )
+
+    # Case 1 — encroachment tile with drifting pos→pos windows:
+    #   ≥ 1 pos→pos pair fires AND total fires across all pairs ≥ MAJORITY_THRESH.
+    #   Count neg→pos fires in the majority to catch tiles where the signal pair
+    #   fires alongside just one anomalous pos→pos pair (e.g. only 2 total fires).
+    #   Dampen only the pos→pos pairs; leave the neg→pos signal intact.
+    if n_pos_pairs > 0 and n_pos_fire >= 1 and n_total_fire >= MAJORITY_THRESH:
+        return [
+            s * SEASONAL_DAMPEN if is_pos else s
+            for s, is_pos in zip(scores, t1_is_pos_flags)
+        ]
+
+    # Case 2 — all-negative tile with majority drift:
+    #   No pos→pos pairs exist and ≥ MAJORITY_THRESH neg→neg pairs fire.
+    #   Dampen all (there is no protected signal pair here).
+    if n_pos_pairs == 0 and n_neg_pairs > 1 and n_neg_fire >= MAJORITY_THRESH:
+        return [s * SEASONAL_DAMPEN for s in scores]
+
     return scores
 
 
@@ -180,7 +224,8 @@ def main() -> int:
 
     # Temporal consistency
     if not args.no_consistency and len(scores) > 1:
-        scores = apply_temporal_consistency(scores, threshold)
+        t1_is_pos_flags = [tip for _, _, tip in pairs]
+        scores = apply_temporal_consistency(scores, threshold, t1_is_pos_flags)
 
     # Decisions
     decisions = [s >= threshold for s in scores]
