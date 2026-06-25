@@ -24,6 +24,7 @@ opencv-python>=4.8.0
 scikit-image>=0.21.0
 
 # ML Models
+scikit-learn>=1.3.0                    # Random Forest classifier (KEMET1)
 segmentation-models-pytorch>=0.3.3    # U-Net + ResNet34 for cloud detection
 transformers>=4.30.0                   # SegFormer-B4 for agriculture segmentation
 ultralytics>=8.0.0                     # YOLOv8-seg for building detection
@@ -33,6 +34,7 @@ einops>=0.6.0                          # ChangeFormer dependency
 # Visualization & Reporting
 matplotlib>=3.7.0
 folium>=0.14.0
+fpdf2>=2.7.0                           # PDF report generation
 
 # Utilities
 tqdm>=4.65.0
