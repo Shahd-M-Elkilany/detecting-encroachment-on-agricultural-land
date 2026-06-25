@@ -60,6 +60,19 @@ def parse_args():
     parser.add_argument("--t2",         type=str, help="T2 (after) GeoTIFF path (with --t1)")
     parser.add_argument("--start-from", type=int, default=1, choices=range(1, 9))
 
+    # KEMET1 RF classifier mode (Step 05 replacement)
+    parser.add_argument(
+        "--kemet1", action="store_true",
+        help="Use trained RF classifier for Step 05 instead of ChangeFormer. "
+             "Input TIFFs must have 6 pre-computed spectral index bands "
+             "(Band0=NDVI, Band1=NDBI, Band2=MNDWI, Band3=SAVI, Band4=BSI, Band5=NDWI).",
+    )
+    parser.add_argument(
+        "--kemet1-extra-pairs", nargs="+", metavar="T1 T2",
+        help="Additional consecutive pairs for temporal consistency filter. "
+             "Provide as flat list: T2.tif T3.tif T3.tif T4.tif (pairs of paths).",
+    )
+
     # Temporal / register
     parser.add_argument("--new-image",  type=str, help="New image path (--temporal)")
     parser.add_argument("--new-date",   type=str, help="Date of new image, e.g. 2026-03-15")
@@ -240,11 +253,26 @@ def main():
     from pipeline import FoodSecurityPipeline
     pipe = FoodSecurityPipeline()
 
+    # Parse KEMET1 extra pairs: flat list [t1a, t2a, t1b, t2b, ...] → [(t1a,t2a), ...]
+    kemet1_extra = []
+    if getattr(args, "kemet1_extra_pairs", None):
+        raw = args.kemet1_extra_pairs
+        if len(raw) % 2 != 0:
+            print("ERROR: --kemet1-extra-pairs must be an even number of paths (T1 T2 pairs).")
+            sys.exit(2)
+        kemet1_extra = [(raw[i], raw[i + 1]) for i in range(0, len(raw), 2)]
+
     if args.gee:
         results = pipe.run_full(use_gee=True, start_from=args.start_from)
     else:
         results = pipe.run_full(
-            t1_path=args.t1, t2_path=args.t2, start_from=args.start_from
+            t1_path            = args.t1,
+            t2_path            = args.t2,
+            start_from         = args.start_from,
+            kemet1_mode        = getattr(args, "kemet1", False),
+            kemet1_t1_path     = args.t1 if getattr(args, "kemet1", False) else None,
+            kemet1_t2_path     = args.t2 if getattr(args, "kemet1", False) else None,
+            kemet1_extra_pairs = kemet1_extra or None,
         )
 
     if "step_08" in results:
@@ -252,6 +280,17 @@ def main():
         print("\n" + "=" * 60)
         print("  RESULTS")
         print("=" * 60)
+
+        # KEMET1 tile-level score (if RF mode was used)
+        step5 = results.get("step_05", {})
+        if "kemet1_score" in step5:
+            decision = "ENCROACHMENT" if step5["kemet1_decision"] else "no encroachment"
+            print(f"  KEMET1 RF score:   {step5['kemet1_score']:.4f}  ({decision})")
+            print(f"  KEMET1 model:      {step5.get('kemet1_model', 'RF')}")
+            print(f"  KEMET1 threshold:  {step5.get('kemet1_threshold', 0.29):.2f}")
+            if len(step5.get("kemet1_all_scores", [])) > 1:
+                print(f"  All pair scores:   {[round(s,3) for s in step5['kemet1_all_scores']]}")
+
         print(f"  Regions:           {report.get('total_regions', 'N/A')}")
         print(f"  Encroachment area: {report.get('encroachment_ha', 'N/A')} ha")
         print(f"  Yellow alert area: {report.get('yellow_alert_ha', 'N/A')} ha")

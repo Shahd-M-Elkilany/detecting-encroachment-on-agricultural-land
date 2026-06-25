@@ -479,11 +479,19 @@ def main():
         bar = "█" * int(importances[idx] * 200)
         print(f"  {rank:2d}. {FEATURE_NAMES[idx]:<28}  {importances[idx]:.4f}  {bar}")
 
-    # ── 8. Save model + threshold ─────────────────────────────────────────────
+    # ── 8. Record val/test AUC for bundle ────────────────────────────────────
+    # Note: Platt/isotonic calibration was tested but is unreliable with only
+    # 6 val positives — it collapses the score range and hurts recall.
+    # The temporal consistency post-processing in evaluate.py already handles
+    # FP reduction without needing calibrated probabilities.
+    from sklearn.metrics import roc_auc_score as _auc
+    _val_auc  = float(_auc(y_val,  clf.predict_proba(X_val)[:, 1]))  if len(np.unique(y_val))  > 1 else float("nan")
+    _test_auc = float(_auc(y_test, clf.predict_proba(X_test)[:, 1])) if len(np.unique(y_test)) > 1 else float("nan")
+    print(f"\n  Val AUC : {_val_auc:.4f}")
+    print(f"  Test AUC: {_test_auc:.4f}")
+
+    # ── 9. Save model + threshold ─────────────────────────────────────────────
     if not args.no_save:
-        test_probs = clf.predict_proba(X_test)[:, 1]
-        from sklearn.metrics import roc_auc_score as _auc
-        _test_auc = float(_auc(y_test, test_probs)) if len(np.unique(y_test)) > 1 else float("nan")
         bundle = {
             "model":          clf,
             "threshold":      final_thresh,
@@ -492,6 +500,7 @@ def main():
             "max_depth":      args.max_depth,
             "min_samples_leaf": args.min_samples_leaf,
             "beta":           args.beta,
+            "val_auc":        _val_auc,
             "test_auc":       _test_auc,
         }
         with open(MODEL_PATH, "wb") as f:

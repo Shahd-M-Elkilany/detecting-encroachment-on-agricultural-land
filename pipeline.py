@@ -202,20 +202,164 @@ class FoodSecurityPipeline:
     # ----------------------------------------------------------
     # Step 05 — Change Detection
     # ----------------------------------------------------------
-    def step_05_change_detection(self) -> Dict[str, Any]:
-        """Detect land-use changes; returns binary map AND confidence scores."""
-        start = self._log_step_start(5, "CHANGE DETECTION")
-        from src.step_05_change_detection.detect_changes import run
+    def step_05_change_detection(
+        self,
+        kemet1_mode: bool = False,
+        kemet1_t1_path: Optional[str | Path] = None,
+        kemet1_t2_path: Optional[str | Path] = None,
+        kemet1_extra_pairs: Optional[list] = None,
+    ) -> Dict[str, Any]:
+        """
+        Detect land-use changes; returns binary map AND confidence scores.
 
-        clean = self.results["step_03"]
-        result = run(
-            clean["T1"]["image"], clean["T2"]["image"],
-            clean["T1"]["meta"],
-        )
+        Standard mode (kemet1_mode=False):
+            Uses ChangeFormer (Siamese Transformer) on raw image arrays.
+
+        KEMET1 mode (kemet1_mode=True):
+            Uses the trained Random Forest classifier on pre-computed 6-band
+            spectral index GeoTIFFs. Applies temporal consistency filter when
+            extra pairs are provided. Returns a tile-level score converted to a
+            full-image change_map for compatibility with downstream steps.
+
+        Args:
+            kemet1_mode:        Switch to RF classifier path.
+            kemet1_t1_path:     Path to T1 spectral-index GeoTIFF (KEMET1 mode).
+            kemet1_t2_path:     Path to T2 spectral-index GeoTIFF (KEMET1 mode).
+            kemet1_extra_pairs: List of (t1_path, t2_path) tuples for additional
+                                consecutive pairs (enables temporal consistency).
+                                Example: [(T2, T3), (T3, T4)]
+        """
+        start = self._log_step_start(5, "CHANGE DETECTION")
+
+        if kemet1_mode:
+            result = self._step_05_kemet1(
+                kemet1_t1_path,
+                kemet1_t2_path,
+                kemet1_extra_pairs or [],
+            )
+        else:
+            from src.step_05_change_detection.detect_changes import run
+            clean = self.results["step_03"]
+            result = run(
+                clean["T1"]["image"], clean["T2"]["image"],
+                clean["T1"]["meta"],
+            )
 
         self.results["step_05"] = result
         self._log_step_end(5, "change_detection", start)
         return result
+
+    def _step_05_kemet1(
+        self,
+        t1_path: Optional[str | Path],
+        t2_path: Optional[str | Path],
+        extra_pairs: list,
+    ) -> Dict[str, Any]:
+        """
+        KEMET1 RF path for Step 05.
+
+        Scores the T1→T2 pair (plus any extra consecutive pairs) using the
+        trained Random Forest bundle. Returns a change_map (H×W binary array)
+        set uniformly to 1 if encroachment is detected, 0 otherwise — compatible
+        with downstream Steps 06-08.
+        """
+        import pickle
+        import sys
+        from pathlib import Path as _Path
+
+        if t1_path is None or t2_path is None:
+            raise ValueError(
+                "kemet1_mode requires kemet1_t1_path and kemet1_t2_path."
+            )
+
+        t1_path = _Path(t1_path)
+        t2_path = _Path(t2_path)
+
+        # Load bundle
+        project_root = _Path(__file__).resolve().parent
+        sys.path.insert(0, str(project_root))
+        from train_classifier import extract_features  # noqa: PLC0415
+
+        bundle_path = project_root / "weights" / "encroachment_classifier_rf.pkl"
+        if not bundle_path.exists():
+            raise FileNotFoundError(
+                f"KEMET1 model bundle not found: {bundle_path}\n"
+                "Run: python train_classifier.py"
+            )
+        with open(bundle_path, "rb") as f:
+            bundle = pickle.load(f)
+
+        model         = bundle["model"]
+        calibrator    = bundle.get("calibrator", None)
+        threshold     = bundle["threshold"]
+        model_name    = bundle.get("model_name", "RF")
+
+        logger.info(f"  KEMET1 RF mode — model: {model_name}, threshold: {threshold:.2f}")
+
+        # Build all pairs: primary + extras
+        def _infer_t1_is_pos(p: _Path) -> bool:
+            return p.stem.endswith("pos")
+
+        pairs = [(t1_path, t2_path, _infer_t1_is_pos(t1_path))]
+        for ep_t1, ep_t2 in extra_pairs:
+            ep_t1, ep_t2 = _Path(ep_t1), _Path(ep_t2)
+            pairs.append((ep_t1, ep_t2, _infer_t1_is_pos(ep_t1)))
+
+        # Score all pairs
+        scores = []
+        for pt1, pt2, tip in pairs:
+            feats = extract_features(pt1, pt2, t1_is_pos=tip)
+            raw_prob = float(model.predict_proba(feats.reshape(1, -1))[0, 1])
+            if calibrator is not None:
+                prob = float(calibrator.predict_proba([[raw_prob]])[0, 1])
+            else:
+                prob = raw_prob
+            scores.append(prob)
+            logger.info(f"  Pair {pt1.name} → {pt2.name}: score={prob:.4f}")
+
+        # Temporal consistency (majority dampen)
+        SEASONAL_DAMPEN = 0.6
+        MAJORITY_THRESH = 2
+        if len(scores) > 1:
+            n_pos = sum(s >= threshold for s in scores)
+            if n_pos >= MAJORITY_THRESH:
+                scores = [s * SEASONAL_DAMPEN for s in scores]
+                logger.info(
+                    f"  Temporal consistency: {n_pos}/{len(scores)} pairs above "
+                    f"threshold — dampening scores x{SEASONAL_DAMPEN}"
+                )
+
+        # Decision from primary pair score (index 0)
+        primary_score = scores[0]
+        encroachment  = primary_score >= threshold
+        logger.info(
+            f"  Primary score: {primary_score:.4f}  "
+            f"({'ENCROACHMENT' if encroachment else 'no encroachment'})"
+        )
+
+        # Build change_map from Step 03 image shape (H, W)
+        clean    = self.results.get("step_03", {})
+        t1_image = clean.get("T1", {}).get("image")
+        if t1_image is not None:
+            H, W = t1_image.shape[1], t1_image.shape[2]
+        else:
+            # Fallback: read shape from T1 file
+            import rasterio
+            with rasterio.open(t1_path) as src:
+                H, W = src.height, src.width
+
+        change_map        = np.ones((H, W), dtype=np.uint8) if encroachment else np.zeros((H, W), dtype=np.uint8)
+        change_confidence = np.full((H, W), primary_score, dtype=np.float32)
+
+        return {
+            "change_map":        change_map,
+            "change_confidence": change_confidence,
+            "kemet1_score":      primary_score,
+            "kemet1_all_scores": scores,
+            "kemet1_decision":   encroachment,
+            "kemet1_threshold":  threshold,
+            "kemet1_model":      model_name,
+        }
 
     # ----------------------------------------------------------
     # Step 06 — Agriculture Segmentation
@@ -304,19 +448,30 @@ class FoodSecurityPipeline:
     # ----------------------------------------------------------
     def run_full(
         self,
-        t1_path:    Optional[str | Path] = None,
-        t2_path:    Optional[str | Path] = None,
-        use_gee:    bool = False,
-        start_from: int = 1,
+        t1_path:              Optional[str | Path] = None,
+        t2_path:              Optional[str | Path] = None,
+        use_gee:              bool = False,
+        start_from:           int = 1,
+        kemet1_mode:          bool = False,
+        kemet1_t1_path:       Optional[str | Path] = None,
+        kemet1_t2_path:       Optional[str | Path] = None,
+        kemet1_extra_pairs:   Optional[list] = None,
     ) -> Dict[str, Any]:
         """
         Run the complete pipeline from start to finish.
 
         Args:
-            t1_path:    Path to T1 GeoTIFF (offline mode).
-            t2_path:    Path to T2 GeoTIFF (offline mode).
-            use_gee:    Download from GEE if True.
-            start_from: Resume from this step number (1-8).
+            t1_path:            Path to T1 GeoTIFF (offline mode).
+            t2_path:            Path to T2 GeoTIFF (offline mode).
+            use_gee:            Download from GEE if True.
+            start_from:         Resume from this step number (1-8).
+            kemet1_mode:        Use KEMET1 RF classifier for Step 05 instead of
+                                ChangeFormer. Requires pre-computed 6-band spectral
+                                index GeoTIFFs.
+            kemet1_t1_path:     T1 spectral-index tile path (KEMET1 mode).
+            kemet1_t2_path:     T2 spectral-index tile path (KEMET1 mode).
+            kemet1_extra_pairs: Extra consecutive pairs for temporal consistency.
+                                List of (t1_path, t2_path) tuples.
         """
         total_start = time.time()
 
@@ -330,7 +485,12 @@ class FoodSecurityPipeline:
             (2, lambda: self.step_02_cloud_detection()),
             (3, lambda: self.step_03_cloud_removal()),    # auto-skips if coverage < 15%
             (4, lambda: self.step_04_spectral_indices()),
-            (5, lambda: self.step_05_change_detection()),
+            (5, lambda: self.step_05_change_detection(
+                kemet1_mode=kemet1_mode,
+                kemet1_t1_path=kemet1_t1_path,
+                kemet1_t2_path=kemet1_t2_path,
+                kemet1_extra_pairs=kemet1_extra_pairs,
+            )),
             (6, lambda: self.step_06_agriculture_segmentation()),
             (7, lambda: self.step_07_building_detection()),
             (8, lambda: self.step_08_final_output()),

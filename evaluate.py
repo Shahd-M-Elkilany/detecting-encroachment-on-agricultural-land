@@ -46,7 +46,7 @@ SEASONAL_DAMPEN  = 0.6   # score multiplier for seasonally-drifting tiles
 MAJORITY_THRESH  = 2     # ≥ this many pairs flagging triggers dampening
 
 
-def evaluate_split(split, model, threshold, apply_consistency=True):
+def evaluate_split(split, model, threshold, apply_consistency=True, calibrator=None):
     split_dir = DATA_DIR / split
     pairs = build_pairs(split_dir)
 
@@ -58,7 +58,11 @@ def evaluate_split(split, model, threshold, apply_consistency=True):
         try:
             feats = extract_features(t1_path, t2_path,
                                      t1_is_pos=(t1_lbl == "pos"))
-            prob = model.predict_proba(feats.reshape(1, -1))[0, 1]
+            raw_prob = model.predict_proba(feats.reshape(1, -1))[0, 1]
+            if calibrator is not None:
+                prob = float(calibrator.predict_proba([[raw_prob]])[0, 1])
+            else:
+                prob = float(raw_prob)
         except Exception:
             prob = float("nan")
         raw.append({
@@ -95,12 +99,13 @@ def evaluate_split(split, model, threshold, apply_consistency=True):
         prob = r["prob"]
         pred = int(prob >= threshold) if not np.isnan(prob) else -1
 
+        safe_prob = float(prob) if not (prob != prob) else float("nan")  # NaN-safe cast
         rows.append({
             "split":       split,
             "tile_id":     r["tile_id"],
             "transition":  f"{r['t1_lbl']}→{r['t2_lbl']}",
             "true_label":  r["true_label"],
-            "prob":        round(float(prob), 4),
+            "prob":        round(safe_prob, 4) if safe_prob == safe_prob else safe_prob,
             "pred":        pred,
             "correct":     (pred == r["true_label"]),
             "dampened":    r.get("consistency_dampened", False),
@@ -488,8 +493,9 @@ def main():
     # Load model
     with open(MODEL_PATH, "rb") as f:
         bundle = pickle.load(f)
-    model     = bundle["model"]
-    threshold = bundle["threshold"]
+    model      = bundle["model"]
+    calibrator = bundle.get("calibrator", None)   # Platt scaler, may be absent in old bundles
+    threshold  = bundle["threshold"]
     model_name = bundle.get("model_name", "RF")
     test_auc   = bundle.get("test_auc", float("nan"))
 
@@ -508,7 +514,7 @@ def main():
         if not split_dir.exists():
             print(f"\n  ⚠  {split_dir} not found, skipping")
             continue
-        rows = evaluate_split(split, model, threshold)
+        rows = evaluate_split(split, model, threshold, calibrator=calibrator)
         all_rows.extend(rows)
         print_split_report(rows, threshold, split)
 
