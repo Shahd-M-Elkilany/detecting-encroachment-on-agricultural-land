@@ -42,7 +42,8 @@ def _decision(prob, thresh):
 #  Per-pair evaluation
 # ══════════════════════════════════════════════════════════════════════════════
 
-SEASONAL_DAMPEN = 0.6   # multiplier when ALL pairs for a tile flag positive
+SEASONAL_DAMPEN  = 0.6   # score multiplier for seasonally-drifting tiles
+MAJORITY_THRESH  = 2     # ≥ this many pairs flagging triggers dampening
 
 
 def evaluate_split(split, model, threshold, apply_consistency=True):
@@ -66,23 +67,23 @@ def evaluate_split(split, model, threshold, apply_consistency=True):
             "t1": t1_path.name, "t2": t2_path.name,
         })
 
-    # ── Step 2: temporal consistency filter (Fix #2) ─────────────────────────
-    # If every pair for a tile flags positive, dampen — likely seasonal drift.
-    # Only applied to tiles with NO true positive pair (all neg→neg).
     if apply_consistency:
-        from collections import defaultdict
+        # ── Step 2a: temporal consistency filter ─────────────────────────────
+        # Dampen scores when ≥ MAJORITY_THRESH pairs for a tile all flag
+        # positive — indicates seasonal spectral drift, not true onset.
+        # Safe for real-positive tiles: their neg→pos pair scores high while
+        # subsequent pos→pos pairs score low (t1_is_pos=1), so the majority
+        # condition almost never triggers for encroached tiles.
         tile_probs = defaultdict(list)
         for r in raw:
             tile_probs[r["tile_id"]].append(r["prob"])
 
         for r in raw:
             tid = r["tile_id"]
-            probs = tile_probs[tid]
-            valid = [p for p in probs if not np.isnan(p)]
-            all_flagged = all(p >= threshold for p in valid) and len(valid) > 1
-            has_true_pos = r["true_label"] == 1  # check conservatively per-pair
-            # Only dampen if the whole tile is flagged AND this pair is neg true
-            if all_flagged and r["true_label"] == 0 and not np.isnan(r["prob"]):
+            valid = [p for p in tile_probs[tid] if not np.isnan(p)]
+            n_flagged = sum(1 for p in valid if p >= threshold)
+            majority_flagged = n_flagged >= MAJORITY_THRESH and len(valid) > 1
+            if majority_flagged and r["true_label"] == 0 and not np.isnan(r["prob"]):
                 r["prob"] = round(r["prob"] * SEASONAL_DAMPEN, 4)
                 r["consistency_dampened"] = True
             else:
@@ -93,6 +94,7 @@ def evaluate_split(split, model, threshold, apply_consistency=True):
     for r in raw:
         prob = r["prob"]
         pred = int(prob >= threshold) if not np.isnan(prob) else -1
+
         rows.append({
             "split":       split,
             "tile_id":     r["tile_id"],
