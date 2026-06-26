@@ -496,151 +496,94 @@ class FoodSecurityPipeline:
             (8, lambda: self.step_08_final_output()),
         ]
 
+        total_results: Dict[str, Any] = {}
         for step_num, step_fn in steps:
-            if step_num >= start_from:
-                try:
-                    step_fn()
-                except Exception as e:
-                    logger.error(f"Step {step_num:02d} FAILED: {e}")
-                    logger.error(
-                        f"Pipeline halted. Fix the issue and resume with "
-                        f"--start-from {step_num}"
-                    )
-                    raise
+            if step_num < start_from:
+                logger.info(f"  Skipping step {step_num} (start_from={start_from})")
+                continue
+            result = step_fn()
+            total_results[f"step_{step_num:02d}"] = result
 
-        total_elapsed = time.time() - total_start
-        logger.info("")
-        logger.info("╔" + "═" * 68 + "╗")
-        logger.info("║   PIPELINE COMPLETE                                              ║")
-        logger.info(f"║   Total time: {total_elapsed:.1f}s" + " " * (53 - len(f"{total_elapsed:.1f}s")) + "║")
-        logger.info("╚" + "═" * 68 + "╝")
+        elapsed = time.time() - total_start
+        logger.info(f"Pipeline complete in {elapsed:.1f}s")
+        return total_results
 
-        logger.info("\nStep Timings:")
-        for name, t in self.timings.items():
-            logger.info(f"  {name}: {t:.1f}s")
-
-        # Print final summary if Step 08 completed
-        if "step_08" in self.results:
-            report = self.results["step_08"].get("report", {})
-            logger.info(
-                f"\n  Encroachment: {report.get('total_regions', 0)} regions, "
-                f"{report.get('encroachment_ha', 0):.2f} ha"
-            )
-            logger.info(
-                f"  Spectral degradation area: {report.get('yellow_alert_ha', 0):.2f} ha"
-            )
-            paths = self.results["step_08"].get("paths", {})
-            logger.info(f"  Interactive map: {paths.get('interactive_map', '')}")
-
-        return self.results
-
-    # ----------------------------------------------------------
-    # Multi-temporal entry point
-    # ----------------------------------------------------------
-    def run_temporal(
+    def run_beforeafter(
         self,
-        new_image_path: str | Path,
-        new_date:       str,
+        before_path: str | Path,
+        after_path:  str | Path,
+        site_name:   str = "site",
     ) -> Dict[str, Any]:
         """
-        Register a new image and run the same-season year-over-year comparison.
+        BeforeAfter inference mode — bypass the 8-step pipeline and run the
+        KEMET1 BA Random Forest directly on a co-registered before/after pair.
 
-        Strategy
-        --------
-        1. PRIMARY  — find the closest image from ~1 year ago (±45 days).
-                      Eliminates seasonal noise; only structural changes survive.
-        2. RECENCY CHECK — run only if primary detects change.
-                      Compares against the most recent prior image to answer
-                      "was this already there last month, or brand new?"
+        Args:
+            before_path:  Path to 2024 (before) 6-band spectral-index GeoTIFF.
+            after_path:   Path to 2025 (after) 6-band spectral-index GeoTIFF.
+            site_name:    Label used in the output HTML/PNG filename.
 
-        Regions are tagged:
-          new_encroachment      — visible in both primary and recency
-          existing_encroachment — in primary but not recency (pre-existing)
-          unconfirmed_timing    — primary flagged it but no recency image available
-
-        Parameters
-        ----------
-        new_image_path : path to the new satellite image
-        new_date       : date label, e.g. "2025-03-15" or "2025-03" or "2025"
+        Returns:
+            dict with keys: prob, total_km2, main_km2, clusters, html, png
         """
-        from src.temporal.temporal_manager import (
-            load_state, save_state, register_image,
-            get_comparison_plan, record_run, merge_results,
+        from run_inference import run as _run_inference
+        before_path = Path(before_path)
+        after_path  = Path(after_path)
+        logger.info(f"[BA] Running BeforeAfter inference on {site_name}")
+        prob, total_ha, main_ha, n_clusters = _run_inference(
+            before_path, after_path, site_name
         )
-
-        new_image_path = str(Path(new_image_path).resolve())
-        state = load_state()
-
-        # Register this image in the archive
-        state = register_image(state, new_image_path, new_date)
-        save_state(state)
-
-        plan = get_comparison_plan(new_image_path, new_date, state)
-        logger.info(f"\nComparison plan: {plan['mode']}\n  {plan['explanation']}")
-
-        if plan["primary"] is None:
-            logger.warning("Cannot run pipeline — not enough images in archive yet.")
-            return {"mode": plan["mode"], "results": [], "regions": [], "state": state}
-
-        # ── Run primary comparison ───────────────────────────────────────────
-        primary = plan["primary"]
-        logger.info(f"\n{'─'*60}\n  PRIMARY [{primary['t1_date']} → {primary['t2_date']}]\n{'─'*60}")
-        self.results = {}
-        primary_pipeline = self.run_full(t1_path=primary["t1_path"], t2_path=primary["t2_path"])
-        primary_regions  = primary_pipeline.get("step_08", {}).get("regions", [])
-
-        # ── Recency check — only if primary found something ──────────────────
-        recency_regions  = None
-        recency_pipeline = None
-
-        if primary_regions and plan["recency"] is not None:
-            recency = plan["recency"]
-            logger.info(
-                f"\n{'─'*60}\n"
-                f"  RECENCY CHECK [{recency['t1_date']} → {recency['t2_date']}]\n"
-                f"{'─'*60}"
-            )
-            self.results = {}
-            recency_pipeline = self.run_full(
-                t1_path=recency["t1_path"], t2_path=recency["t2_path"]
-            )
-            recency_regions = recency_pipeline.get("step_08", {}).get("regions", [])
-        elif primary_regions and plan["recency"] is None:
-            logger.info("Primary flagged changes but no recency image available — skipping recency check.")
-
-        # ── Merge and tag ────────────────────────────────────────────────────
-        merged_regions  = merge_results(primary_regions, recency_regions)
-        change_detected = len(merged_regions) > 0
-        encroachment_ha = sum(r.get("area_ha", 0) for r in merged_regions)
-
-        state = record_run(
-            state            = state,
-            new_image_path   = new_image_path,
-            new_date_str     = new_date,
-            primary_result   = primary_pipeline,
-            recency_result   = recency_pipeline,
-            change_detected  = change_detected,
-            encroachment_ha  = encroachment_ha,
-            regions          = merged_regions,
-        )
-        save_state(state)
-
-        n_new   = sum(1 for r in merged_regions if r.get("encroachment_type") == "new_encroachment")
-        n_exist = sum(1 for r in merged_regions if r.get("encroachment_type") == "existing_encroachment")
-        n_unc   = sum(1 for r in merged_regions if r.get("encroachment_type") == "unconfirmed_timing")
-
-        logger.info(
-            f"\nTemporal run complete — mode: {plan['mode']}\n"
-            f"  Total encroachment: {encroachment_ha:.2f} ha\n"
-            f"  New:               {n_new}\n"
-            f"  Existing:          {n_exist}\n"
-            f"  Unconfirmed timing:{n_unc}\n"
-        )
-
-        return {
-            "mode":            plan["mode"],
-            "primary_result":  primary_pipeline,
-            "recency_result":  recency_pipeline,
-            "regions":         merged_regions,
-            "state":           state,
+        out_dir = Path("outputs")
+        result = {
+            "prob":      prob,
+            "total_km2": round(total_ha * 0.01, 4),
+            "main_km2":  round(main_ha  * 0.01, 4),
+            "clusters":  n_clusters,
+            "html":      str(out_dir / f"{site_name}_report.html"),
+            "png":       str(out_dir / f"{site_name}_report.png"),
+            "detected":  prob >= 0.40,
         }
+        logger.info(f"[BA] {site_name}: prob={prob:.3f}  detected={result['detected']}"
+                    f"  lost={result['total_km2']:.4f} km2")
+        return result
+
+
+# ---------------------------------------------------------------------------
+# CLI entry-point
+# ---------------------------------------------------------------------------
+if __name__ == "__main__":
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Food Security ML Pipeline")
+    sub = parser.add_subparsers(dest="mode", required=True)
+
+    # full pipeline
+    p_full = sub.add_parser("full", help="Run full 8-step pipeline")
+    p_full.add_argument("--t1",          type=str, default=None)
+    p_full.add_argument("--t2",          type=str, default=None)
+    p_full.add_argument("--start-from",  type=int, default=1)
+    p_full.add_argument("--kemet1",      action="store_true")
+    p_full.add_argument("--kemet1-t1",   type=str, default=None)
+    p_full.add_argument("--kemet1-t2",   type=str, default=None)
+
+    # beforeafter mode
+    p_ba = sub.add_parser("beforeafter", help="BA inference (before/after GeoTIFF pair)")
+    p_ba.add_argument("--before",    type=str, required=True)
+    p_ba.add_argument("--after",     type=str, required=True)
+    p_ba.add_argument("--site-name", type=str, default="site")
+
+    args = parser.parse_args()
+    pipeline = FoodSecurityPipeline()
+
+    if args.mode == "full":
+        pipeline.run_full(
+            t1_path=args.t1, t2_path=args.t2,
+            start_from=args.start_from,
+            kemet1_mode=args.kemet1,
+            kemet1_t1_path=args.kemet1_t1,
+            kemet1_t2_path=args.kemet1_t2,
+        )
+    elif args.mode == "beforeafter":
+        result = pipeline.run_beforeafter(args.before, args.after, args.site_name)
+        print(f"\nResult: {result}")
+        print(f"Report: {result['html']}")
