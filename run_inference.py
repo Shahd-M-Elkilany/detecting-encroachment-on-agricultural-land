@@ -1,0 +1,300 @@
+"""run_inference.py - KEMET1 BeforeAfter encroachment report generator."""
+from __future__ import annotations
+import argparse, pickle, base64
+from pathlib import Path
+import numpy as np, rasterio
+from rasterio.warp import transform_bounds
+from scipy import ndimage
+import matplotlib; matplotlib.use("Agg")
+import matplotlib.pyplot as plt, matplotlib.patches as patches
+from matplotlib.gridspec import GridSpec
+
+BA_DIR     = Path("data/KEMET1_BeforeAfter/KEMET1_BeforeAfter_Tiles")
+MODEL_PATH = Path("models/ba_rf_model.pkl")
+OUT_DIR    = Path("outputs"); OUT_DIR.mkdir(exist_ok=True)
+
+def extract_stats(arr):
+    feats = []
+    for b in range(arr.shape[0]):
+        ch = arr[b].ravel(); ch = ch[np.isfinite(ch)]
+        feats += [ch.mean(), ch.std(),
+                  np.percentile(ch,10), np.percentile(ch,25), np.percentile(ch,50),
+                  np.percentile(ch,75), np.percentile(ch,90)]
+    return np.array(feats)
+
+def pair_features(d1, d2):
+    fd = extract_stats(d2 - d1)
+    ndvi1, ndbi1 = d1[0], d1[1]; ndvi2, ndbi2 = d2[0], d2[1]
+    pct_conv = float(((ndvi1>0.25)&(ndvi2<0.25)&(ndbi2>ndbi1+0.08)).mean())
+    pct_new  = float(((ndbi2>0.15)&((ndbi2-ndbi1)>0.10)).mean())
+    return np.concatenate([fd,[float(np.nanmean(ndvi2-ndvi1)),float(np.nanmean(ndbi2-ndbi1)),pct_conv,pct_new]])
+
+def shared_rgb(d1, d2):
+    imgs = []
+    for ch1, ch2 in [(d1[1],d2[1]),(d1[0],d2[0]),(d1[2],d2[2])]:
+        combined = np.concatenate([ch1.ravel(), ch2.ravel()])
+        lo = np.nanpercentile(combined,2); hi = np.nanpercentile(combined,98)
+        nrm = lambda x, lo=lo, hi=hi: np.clip((x-lo)/(hi-lo+1e-9),0,1)
+        imgs.append((nrm(ch1), nrm(ch2)))
+    return np.stack([r[0] for r in imgs],-1), np.stack([r[1] for r in imgs],-1)
+
+def find_clusters(d1, d2, min_ha=0.5):
+    ndvi1, ndbi1 = d1[0], d1[1]; ndvi2, ndbi2 = d2[0], d2[1]
+    mask = ((ndvi1>0.25)&(ndvi2<0.25)&(ndbi2>ndbi1+0.08)).astype(np.uint8)
+    labeled, n = ndimage.label(mask)
+    out = []
+    for i in range(n):
+        comp = labeled==(i+1); ha = comp.sum()*100/10_000
+        if ha >= min_ha:
+            rows = np.where(comp.any(axis=1))[0]; cols = np.where(comp.any(axis=0))[0]
+            out.append((rows[0],rows[-1],cols[0],cols[-1],round(ha,2)))
+    return sorted(out, key=lambda x:-x[4])
+
+def card(lbl, val, color="#c9d1d9", sm=False):
+    sz = "font-size:1rem;" if sm else ""
+    return ('<div class="card"><div class="lbl">'+lbl+'</div>'
+            '<div class="val" style="color:'+color+';'+sz+'">'+str(val)+'</div></div>')
+
+# JSONP geocoding — script tags bypass file:// CORS restrictions
+GEOCODE_JS = r"""
+function _showName(ci,full,rlat,rlon){
+  var sel='[data-name="'+ci+'"]';
+  var sp=document.querySelector(sel);
+  if(sp){sp.textContent=full;sp.style.color='#c9d1d9';}
+  if(_clayers[ci])_clayers[ci].bindPopup(
+    '<b>'+full+'</b><br>Cluster #'+(ci+1)+'<br>'+(_clayers[ci]._ha||'')
+    +'<br>'+parseFloat(rlat).toFixed(5)+'N '+parseFloat(rlon).toFixed(5)+'E');
+}
+function _parseAddr(d){
+  var a=d.address||{};
+  var nm=a.hamlet||a.neighbourhood||a.isolated_dwelling
+        ||a.village||a.suburb||a.quarter||a.allotments
+        ||a.town||a.municipality||a.city_district||a.city
+        ||a.county||a.state_district||'';
+  var gv=a.state||a.state_district||a.county||'';
+  if(!nm&&d.display_name){
+    var pts=d.display_name.split(',');
+    for(var k=0;k<pts.length;k++){
+      var p=pts[k].trim();
+      if(p&&!/^\d/.test(p)){nm=p;if(k+1<pts.length)gv=pts[k+1].trim();break;}
+    }
+  }
+  return (nm||'Nile Delta area')+(gv&&gv!==nm?' – '+gv:'');
+}
+function _jsonpGeo(ci,rlat,rlon){
+  window['_gcb'+ci]=function(d){_showName(ci,_parseAddr(d),rlat,rlon);};
+  var t=document.createElement('script');
+  t.onerror=function(){
+    var nm=_parseAddr({display_name:'',address:{}});
+    _showName(ci,'Nile Delta ('+parseFloat(rlat).toFixed(3)+'N)',rlat,rlon);
+  };
+  t.src='https://nominatim.openstreetmap.org/reverse?format=json&lat='+rlat
+       +'&lon='+rlon+'&zoom=14&accept-language=en&json_callback=_gcb'+ci;
+  document.head.appendChild(t);
+}
+window.addEventListener('load',function(){
+  document.querySelectorAll('tr[data-ci]').forEach(function(row,idx){
+    var ci=parseInt(row.getAttribute('data-ci'));
+    var rlat=row.getAttribute('data-lat');
+    var rlon=row.getAttribute('data-lon');
+    setTimeout(function(){_jsonpGeo(ci,rlat,rlon);},idx*700);
+  });
+});
+"""
+
+def run(before_path, after_path, site_name):
+    with rasterio.open(before_path) as s:
+        d1 = s.read().astype(np.float32)
+        wgs = transform_bounds(s.crs,"EPSG:4326",*s.bounds)
+        tile_ha = s.width*s.height*s.res[0]*s.res[0]/10_000
+    with rasterio.open(after_path) as s:
+        d2 = s.read().astype(np.float32)
+    clat = (wgs[1]+wgs[3])/2; clon = (wgs[0]+wgs[2])/2
+
+    bundle = pickle.load(open(MODEL_PATH,"rb"))
+    feat = bundle["imputer"].transform(pair_features(d1,d2).reshape(1,-1))
+    prob = float(bundle["model"].predict_proba(feat)[0,1])
+    label = "ENCROACHMENT DETECTED" if prob>=0.40 else "No encroachment"
+    sc = "#ff4444" if prob>=0.40 else "#44ff88"
+
+    clusters = find_clusters(d1, d2)
+    total_ha = sum(c[4] for c in clusters)
+    main_ha  = clusters[0][4] if clusters else 0.0
+
+    img1, img2 = shared_rgb(d1, d2); ndiff = d2[0]-d1[0]
+    BG = "#0d1117"
+    fig = plt.figure(figsize=(20,7.5),facecolor=BG)
+    gs = GridSpec(1,3,figure=fig,wspace=0.04,left=0.02,right=0.98,top=0.88,bottom=0.08)
+    ax0 = fig.add_subplot(gs[0]); ax0.set_facecolor(BG)
+    ax0.imshow(img1,interpolation="nearest")
+    ax0.set_title("BEFORE (2024)",color="#8ee3ff",fontsize=13,fontweight="bold",pad=6); ax0.axis("off")
+    ax1 = fig.add_subplot(gs[1]); ax1.set_facecolor(BG)
+    ax1.imshow(img2,interpolation="nearest")
+    ax1.set_title("AFTER (2025) - "+label,color=sc,fontsize=13,fontweight="bold",pad=6); ax1.axis("off")
+    for i,(r0,r1,c0,c1,ha) in enumerate(clusters[:8]):
+        clr="#ff3333" if i==0 else "#ff9900"
+        ax1.add_patch(patches.Rectangle((c0,r0),c1-c0,r1-r0,lw=2 if i==0 else 1.2,
+            edgecolor=clr,facecolor=clr+"22",ls="-" if i==0 else "--"))
+        if i==0:
+            ax1.annotate("%.4f km2"%(ha*0.01),xy=(c0+(c1-c0)//2,r0-4),color="#ff6060",
+                fontsize=9,ha="center",va="bottom",fontweight="bold",
+                bbox=dict(boxstyle="round,pad=0.2",fc="#1a0000",ec="#ff3333",lw=1))
+    ax1.set_xlabel("R=NDBI G=NDVI B=MNDWI 10m/px shared scale",color="#6e7681",fontsize=9)
+    ax2 = fig.add_subplot(gs[2]); ax2.set_facecolor(BG)
+    vmax = max(abs(np.nanpercentile(ndiff,2)),abs(np.nanpercentile(ndiff,98)))
+    im = ax2.imshow(ndiff,cmap="RdYlGn",interpolation="nearest",vmin=-vmax,vmax=vmax)
+    for r0,r1,c0,c1,_ in clusters[:8]:
+        ax2.add_patch(patches.Rectangle((c0,r0),c1-c0,r1-r0,lw=1.5,edgecolor="yellow",facecolor="none"))
+    cb = fig.colorbar(im,ax=ax2,fraction=0.04,pad=0.02)
+    cb.ax.tick_params(colors="#aaa"); cb.set_label("dNDVI",color="#aaa",fontsize=9)
+    ax2.set_title("NDVI Difference (2024 to 2025)",color="#8ee3ff",fontsize=13,fontweight="bold",pad=6)
+    ax2.axis("off")
+    fig.suptitle("%s | RF: %.3f | Changed: %.3f km2 | Tile: %.3f km2 | Largest: %.3f km2"
+                 %(site_name,prob,total_ha*0.01,tile_ha*0.01,main_ha*0.01),color="#c9d1d9",fontsize=11,y=0.97)
+    out_png = OUT_DIR/(site_name+"_report.png")
+    plt.savefig(out_png,dpi=140,bbox_inches="tight",facecolor=BG); plt.close()
+    print("PNG:", out_png)
+
+    hpx = d1.shape[1]; wpx = d1.shape[2]
+    lpp = (wgs[3]-wgs[1])/hpx; lnp = (wgs[2]-wgs[0])/wpx
+    js_rects = []; sidebar_rows = []
+
+    for i,(r0,r1,c0,c1,ha) in enumerate(clusters):
+        lat_s = wgs[3]-r1*lpp; lat_n = wgs[3]-r0*lpp
+        lon_w = wgs[0]+c0*lnp; lon_e = wgs[0]+c1*lnp
+        clt = (lat_s+lat_n)/2; clo = (lon_w+lon_e)/2
+        clr = "#ff3333" if i==0 else ("#ff6600" if i<3 else "#ffaa00")
+        wt  = 2.5 if i==0 else 1.8
+        km2 = round(ha*0.01, 4)
+        bbox = "[[%.5f,%.5f],[%.5f,%.5f]]"%(lat_s,lon_w,lat_n,lon_e)
+        js_rects.append(
+            "_clayers[%d]=L.rectangle(%s,{color:'%s',weight:%.1f,"
+            "dashArray:'5 3',fillColor:'%s',fillOpacity:0.18}).addTo(map);"
+            "_clayers[%d]._ha='%s km2';"
+            "_clayers[%d].bindPopup('Cluster #%d<br>%s km2<br>%.5fN %.5fE');"
+            % (i,bbox,clr,wt,clr,i,km2,i,i+1,km2,clt,clo)
+        )
+        sidebar_rows.append(
+            "<tr data-ci='%d' data-lat='%.5f' data-lon='%.5f'>"
+            "<td>#%d</td><td>%.5fN</td><td>%.5fE</td>"
+            "<td><span data-name='%d' style='color:#8ee3ff'>loading...</span></td>"
+            "<td>%s km2</td></tr>"
+            % (i,clt,clo,i+1,clt,clo,i,km2)
+        )
+
+    with open(out_png,"rb") as f: b64 = base64.b64encode(f.read()).decode()
+    mbbox = "[[%.5f,%.5f],[%.5f,%.5f]]"%(wgs[1],wgs[0],wgs[3],wgs[2])
+    cjs  = "\n".join(js_rects)
+    stbl = "\n".join(sidebar_rows)
+
+    cards_html = "".join([
+        card("RF Score","%.3f"%prob,sc),
+        card("Verdict",label,sc,sm=True),
+        card("Centre Lat","%.5fN"%clat,"#c9d1d9",sm=True),
+        card("Centre Lon","%.5fE"%clon,"#c9d1d9",sm=True),
+        card("Total Area Lost","%.3f km2"%(total_ha*0.01),"#ff8c00"),
+        card("Largest Cluster","%.3f km2"%(main_ha*0.01)),
+        card("Tile Area","%.3f km2"%(tile_ha*0.01)),
+        card("Change Clusters",str(len(clusters))),
+    ])
+
+    map_script = (
+        "var _clayers=[];"
+        "var map=L.map('map').setView([%.5f,%.5f],15);" % (clat,clon)
+        + "var sat=L.tileLayer('https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}',"
+          "{maxZoom:20,subdomains:['mt0','mt1','mt2','mt3'],attribution:'Google'});"
+          "var hyb=L.tileLayer('https://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',"
+          "{maxZoom:20,subdomains:['mt0','mt1','mt2','mt3'],attribution:'Google'});"
+          "var osm=L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'OSM'});"
+          "sat.addTo(map);"
+        + "L.rectangle(%s,{color:'#3399ff',weight:2,fillOpacity:0.04,dashArray:'8 4'})"
+          ".addTo(map).bindPopup('Study tile %.3f km2');" % (mbbox, tile_ha*0.01)
+        + cjs
+        + "L.circleMarker([%.5f,%.5f],{radius:5,color:'%s',fillColor:'%s',fillOpacity:0.9,weight:2})"
+          % (clat,clon,sc,sc)
+        + ".addTo(map).bindPopup('<b>%s</b><br>RF:%.3f<br>%s<br>Lost:%.3f km2');"
+          % (site_name,prob,label,total_ha*0.01)
+        + "L.control.layers({'Satellite':sat,'Hybrid':hyb,'OSM':osm}).addTo(map);"
+          "L.control.scale().addTo(map);"
+    )
+
+    css = (
+        "*{margin:0;padding:0;box-sizing:border-box}"
+        "body{background:#0d1117;color:#c9d1d9;font-family:'Segoe UI',sans-serif}"
+        "h1{padding:16px 24px;font-size:1.2rem;color:#8ee3ff;border-bottom:1px solid #21262d}"
+        ".cards{display:flex;gap:14px;padding:16px 24px;flex-wrap:wrap}"
+        ".card{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:12px 18px;min-width:130px}"
+        ".card .lbl{font-size:10px;color:#6e7681;text-transform:uppercase;letter-spacing:.06em;margin-bottom:3px}"
+        ".card .val{font-size:1.3rem;font-weight:700}"
+        ".ms{display:flex;margin:0 24px;border-radius:8px;overflow:hidden;border:1px solid #30363d;height:460px}"
+        "#map{flex:1;min-width:0}"
+        ".panel{width:310px;background:#161b22;overflow-y:auto;border-left:1px solid #30363d;flex-shrink:0}"
+        ".panel h3{padding:12px 16px;font-size:11px;color:#8ee3ff;text-transform:uppercase;"
+        "letter-spacing:.07em;border-bottom:1px solid #21262d;position:sticky;top:0;background:#161b22;z-index:1}"
+        ".panel table{width:100%;border-collapse:collapse;font-size:11px}"
+        ".panel th{padding:7px 10px;color:#6e7681;text-align:left;border-bottom:1px solid #21262d;font-size:10px}"
+        ".panel td{padding:7px 10px;border-bottom:1px solid #161b22}"
+        ".panel tr:nth-child(odd) td{background:#0d1117}"
+        ".panel tr:first-child td{color:#ff6060;font-weight:600}"
+        ".tot{padding:10px 16px;font-size:11px;color:#8ee3ff;border-top:1px solid #30363d;background:#0d1117}"
+        ".leg{padding:10px 16px;font-size:10px;border-top:1px solid #21262d}"
+        ".li{display:flex;align-items:center;gap:6px;margin-bottom:5px}"
+        ".dot{width:12px;height:12px;border-radius:2px;border:2px solid}"
+        ".iw{padding:16px 24px}.iw img{width:100%;border-radius:8px;border:1px solid #21262d}"
+        "footer{padding:10px 24px;font-size:10px;color:#6e7681;border-top:1px solid #21262d}"
+    )
+
+    html = "\n".join([
+        "<!DOCTYPE html><html lang='en'><head><meta charset='UTF-8'>",
+        "<title>KEMET1 - "+site_name+"</title>",
+        "<link rel='stylesheet' href='https://unpkg.com/leaflet@1.9.4/dist/leaflet.css'/>",
+        "<script src='https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'></script>",
+        "<style>"+css+"</style>",
+        "</head><body>",
+        "<h1>KEMET1 Encroachment Classifier - "+site_name+"</h1>",
+        '<div class="cards">'+cards_html+"</div>",
+        '<div class="ms"><div id="map"></div>',
+        '<div class="panel"><h3>Detected Change Areas</h3>',
+        "<table><thead><tr><th>#</th><th>Lat</th><th>Lon</th><th>Location Name</th><th>Area</th></tr></thead>",
+        "<tbody>"+stbl+"</tbody></table>",
+        '<div class="tot">Total lost: <b>%.3f km2</b> across %d clusters</div>' % (total_ha*0.01,len(clusters)),
+        '<div class="leg">',
+        '<div class="li"><div class="dot" style="border-color:#ff3333;background:#ff333330"></div>Largest cluster</div>',
+        '<div class="li"><div class="dot" style="border-color:#ff6600;background:#ff660030"></div>2nd-3rd cluster</div>',
+        '<div class="li"><div class="dot" style="border-color:#ffaa00;background:#ffaa0030"></div>Smaller clusters</div>',
+        '<div class="li"><div class="dot" style="border-color:#3399ff;background:#3399ff10"></div>Tile boundary</div>',
+        "</div></div></div>",
+        "<script>"+map_script+"</script>",
+        "<script>"+GEOCODE_JS+"</script>",
+        '<div class="iw"><img src="data:image/png;base64,'+b64+'" alt="Before/After"></div>',
+        "<footer>KEMET1 BeforeAfter RF Classifier - Sentinel-2 10m - Before=2024 After=2025</footer>",
+        "</body></html>",
+    ])
+
+    out_html = OUT_DIR/(site_name+"_report.html")
+    out_html.write_text(html, encoding="utf-8")
+    print("HTML:", out_html)
+    return prob, total_ha, main_ha, len(clusters)
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--site",   type=str,  default=None)
+    parser.add_argument("--before", type=Path, default=None)
+    parser.add_argument("--after",  type=Path, default=None)
+    args = parser.parse_args()
+    if args.site:
+        sn = args.site
+        run(BA_DIR/(sn+"_before_2024.tif"), BA_DIR/(sn+"_after_2025.tif"), sn)
+    elif args.before and args.after:
+        run(args.before, args.after, args.before.stem)
+    else:
+        import json
+        labels = json.load(open("data/ba_labels.json"))
+        for r in [x for x in labels if x["label"]=="pos"][:5]:
+            sn = r["site"]
+            print("\n"+"="*60+"\n"+sn)
+            run(BA_DIR/(sn+"_before_2024.tif"), BA_DIR/(sn+"_after_2025.tif"), sn)
+
+if __name__ == "__main__":
+    main()
