@@ -11,23 +11,42 @@ Usage (multiple pairs for the same tile, enables temporal consistency):
         --t1 tile_01_T2.tif --t2 tile_01_T3.tif \\
         --t1 tile_01_T3.tif --t2 tile_01_T4.tif
 
-Options:
-    --model PATH     path to .pkl bundle (default: weights/encroachment_classifier_rf.pkl)
-    --t1 PATH        path to "before" image (repeatable)
-    --t2 PATH        path to "after"  image (repeatable, must match --t1 count)
-    --t1-is-pos      treat T1 as already-encroached (raises t1_is_pos feature flag)
-                     if omitted, inferred from filename suffix (*_pos.tif)
-    --no-consistency skip majority temporal consistency dampening
-    --json           output machine-readable JSON instead of human-readable text
+Usage (adaptive baseline — chronological sequence for ONE site):
+    python predict.py --adaptive \\
+        --images D1.tif D2.tif D3.tif D4.tif \\
+        --dates  2024-01 2024-07 2025-01 2025-07
 
-Temporal consistency:
+    The adaptive baseline strategy:
+    - Starts with D1 as the anchor baseline.
+    - Compares baseline vs each new image in order.
+    - RED alert (score >= promote-threshold, default 0.60):
+        baseline moves to the current image; t1_is_pos becomes True.
+    - YELLOW alert (score >= alert-threshold, default 0.40):
+        alert raised but baseline stays — anchor held at last clean image.
+    - No change (score < alert-threshold):
+        baseline stays; next image still compared against the same anchor.
+
+Options:
+    --model PATH              path to .pkl bundle
+    --t1 PATH                 "before" image (repeatable, standard mode)
+    --t2 PATH                 "after" image (repeatable, standard mode)
+    --t1-is-pos               force t1_is_pos=True (standard mode)
+    --no-consistency          skip temporal consistency dampening (standard mode)
+    --adaptive                switch to adaptive baseline mode
+    --images PATH [PATH …]    chronological image list (adaptive mode)
+    --dates STR [STR …]       matching date labels, e.g. 2024-01 (adaptive mode)
+    --alert-threshold FLOAT   yellow-alert threshold (default: 0.40, adaptive mode)
+    --promote-threshold FLOAT baseline-promotion threshold (default: 0.60, adaptive mode)
+    --json                    output machine-readable JSON
+
+Temporal consistency (standard mode):
     When ≥ MAJORITY_THRESH pairs (default 2) across all supplied image pairs
     score positive, all scores for that tile are multiplied by SEASONAL_DAMPEN (0.6).
     This suppresses seasonally-drifting false positives.
 
 Exit codes:
     0  no encroachment detected
-    1  encroachment detected in at least one pair
+    1  encroachment detected (red alert in adaptive mode, or any pair in standard mode)
     2  error
 """
 
@@ -42,8 +61,12 @@ from pathlib import Path
 import numpy as np
 
 # ── Constants (must match evaluate.py) ───────────────────────────────────────
-SEASONAL_DAMPEN = 0.6
-MAJORITY_THRESH = 2
+SEASONAL_DAMPEN  = 0.6
+MAJORITY_THRESH  = 2
+
+# Adaptive baseline thresholds (mirrored from temporal_manager for CLI defaults)
+ALERT_THRESHOLD   = 0.40
+PROMOTE_THRESHOLD = 0.60
 
 
 def _infer_t1_is_pos(path: Path) -> bool:
@@ -153,12 +176,13 @@ def main() -> int:
         default=Path(__file__).resolve().parent / "weights" / "encroachment_classifier_rf.pkl",
         help="Path to the saved model bundle (.pkl)",
     )
+    # ── Standard mode args ────────────────────────────────────────────────────
     parser.add_argument(
         "--t1",
         dest="t1_paths",
         metavar="PATH",
         action="append",
-        required=True,
+        default=[],
         type=Path,
         help='Path to the "before" image. Repeat for multiple pairs.',
     )
@@ -167,7 +191,7 @@ def main() -> int:
         dest="t2_paths",
         metavar="PATH",
         action="append",
-        required=True,
+        default=[],
         type=Path,
         help='Path to the "after" image. Repeat for multiple pairs.',
     )
@@ -184,113 +208,37 @@ def main() -> int:
         action="store_true",
         help="Disable temporal consistency dampening.",
     )
+    # ── Adaptive baseline mode args ───────────────────────────────────────────
     parser.add_argument(
-        "--json",
+        "--adaptive",
         action="store_true",
-        help="Output results as JSON.",
+        help="Use adaptive baseline mode for a chronological sequence of images.",
     )
-    args = parser.parse_args()
-
-    # Validate pair counts
-    if len(args.t1_paths) != len(args.t2_paths):
-        print(
-            f"[ERROR] --t1 and --t2 must be given the same number of times "
-            f"(got {len(args.t1_paths)} vs {len(args.t2_paths)}).",
-            file=sys.stderr,
-        )
-        return 2
-
-    # Load model bundle
-    bundle = load_bundle(args.model)
-    model         = bundle["model"]
-    calibrator    = bundle.get("calibrator", None)
-    threshold     = bundle["threshold"]
-    feature_names = bundle.get("feature_names", [])
-    model_name    = bundle.get("model_name", "RF")
-    val_auc       = bundle.get("val_auc", float("nan"))
-    test_auc      = bundle.get("test_auc", float("nan"))
-
-    # Build pair list with t1_is_pos flags
-    pairs: list[tuple[Path, Path, bool]] = []
-    for t1p, t2p in zip(args.t1_paths, args.t2_paths):
-        if args.t1_is_pos_flag is not None:
-            tip = args.t1_is_pos_flag
-        else:
-            tip = _infer_t1_is_pos(t1p)
-        pairs.append((t1p, t2p, tip))
-
-    # Score
-    scores = score_pairs(pairs, model, calibrator, feature_names)
-
-    # Temporal consistency
-    if not args.no_consistency and len(scores) > 1:
-        t1_is_pos_flags = [tip for _, _, tip in pairs]
-        scores = apply_temporal_consistency(scores, threshold, t1_is_pos_flags)
-
-    # Decisions
-    decisions = [s >= threshold for s in scores]
-    encroachment_detected = any(decisions)
-
-    if args.json:
-        result = {
-            "model": model_name,
-            "threshold": float(threshold),
-            "val_auc": float(val_auc) if not (val_auc != val_auc) else None,
-            "test_auc": float(test_auc) if not (test_auc != test_auc) else None,
-            "temporal_consistency_applied": bool(not args.no_consistency and len(scores) > 1),
-            "encroachment_detected": bool(encroachment_detected),
-            "pairs": [
-                {
-                    "t1": str(t1p),
-                    "t2": str(t2p),
-                    "t1_is_pos": bool(tip),
-                    "score": round(float(score), 4),
-                    "decision": bool(decision),
-                    "label": "ENCROACHMENT" if decision else "no encroachment",
-                }
-                for (t1p, t2p, tip), score, decision in zip(pairs, scores, decisions)
-            ],
-        }
-        print(json.dumps(result, indent=2))
-    else:
-        bar_width = 20
-
-        print()
-        print("══════════════════════════════════════════════════════")
-        print("  KEMET1 — Encroachment Prediction")
-        print("══════════════════════════════════════════════════════")
-        print(f"  Model     : {model_name}")
-        print(f"  Threshold : {threshold:.2f}")
-        if not (val_auc != val_auc):
-            print(f"  Val AUC   : {val_auc:.4f}")
-        if not (test_auc != test_auc):
-            print(f"  Test AUC  : {test_auc:.4f}")
-        tc_applied = not args.no_consistency and len(scores) > 1
-        print(f"  Temporal consistency : {'ON' if tc_applied else 'OFF'}")
-        print()
-
-        for (t1p, t2p, tip), score, decision in zip(pairs, scores, decisions):
-            bar = "█" * int(score * bar_width)
-            bar = bar.ljust(bar_width, "░")
-            marker = "✗" if decision else "✓"
-            label  = "← ENCROACHMENT" if decision else ""
-            t1_tag = "(pos)" if tip else "(neg)"
-            print(
-                f"  {marker}  {t1p.name} {t1_tag} → {t2p.name}"
-                f"  p={score:.3f} {bar}  {label}"
-            )
-
-        print()
-        print("──────────────────────────────────────────────────────")
-        if encroachment_detected:
-            print("  RESULT: ⚠  ENCROACHMENT DETECTED")
-        else:
-            print("  RESULT: ✓  No encroachment detected")
-        print("══════════════════════════════════════════════════════")
-        print()
-
-    return 1 if encroachment_detected else 0
-
-
-if __name__ == "__main__":
-    sys.exit(main())
+    parser.add_argument(
+        "--images",
+        nargs="+",
+        metavar="PATH",
+        type=Path,
+        default=[],
+        help="Chronological image paths (adaptive mode).",
+    )
+    parser.add_argument(
+        "--dates",
+        nargs="+",
+        metavar="DATE",
+        default=[],
+        help="Date labels matching --images, e.g. 2024-01 2024-07 (adaptive mode).",
+    )
+    parser.add_argument(
+        "--alert-threshold",
+        type=float,
+        default=None,
+        help=f"Yellow-alert threshold (adaptive mode, default: {ALERT_THRESHOLD}).",
+    )
+    parser.add_argument(
+        "--promote-threshold",
+        type=float,
+        default=None,
+        help=f"Baseline-promotion threshold (adaptive mode, default: {PROMOTE_THRESHOLD}).",
+    )
+    # ── Shared ────────────────────────────────────────�
