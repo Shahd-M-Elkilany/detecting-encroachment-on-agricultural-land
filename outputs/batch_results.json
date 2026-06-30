@@ -1,0 +1,626 @@
+[
+  {
+    "site": "site0",
+    "label": "pos",
+    "prob": 0.0,
+    "total_ha": 26.1,
+    "main_ha": 0.0,
+    "clusters": 0
+  },
+  {
+    "site": "site3",
+    "label": "pos",
+    "prob": 0.0,
+    "total_ha": 14.2,
+    "main_ha": 0.0,
+    "clusters": 0
+  },
+  {
+    "site": "site15",
+    "label": "pos",
+    "prob": 0.0,
+    "total_ha": 0.0,
+    "main_ha": 0.0,
+    "clusters": 0
+  },
+  {
+    "site": "site23",
+    "label": "pos",
+    "prob": 0.0,
+    "total_ha": 14.5,
+    "main_ha": 0.0,
+    "clusters": 0
+  },
+  {
+    "site": "site31",
+    "label": "pos",
+    "prob": 0.0,
+    "total_ha": 10.4,
+    "main_ha": 0.0,
+    "clusters": 0
+  },
+  {
+    "site": "site38",
+    "label": "pos",
+    "prob": 0.0,
+    "total_ha": 9.4,
+    "main_ha": 0.0,
+    "clusters": 0
+  },
+  {
+    "site": "site42",
+    "label": "pos",
+    "prob": 0.0,
+    "total_ha": 9.5,
+    "main_ha": 0.0,
+    "clusters": 0
+  },
+  {
+    "site": "site48",
+    "label": "pos",
+    "prob": 0.0,
+    "total_ha": 21.8,
+    "main_ha": 0.0,
+    "clusters": 0
+  },
+  {
+    "site": "site50",
+    "label": "pos",
+    "prob": 0.0,
+    "total_ha": 22.8,
+    "main_ha": 0.0,
+    "clusters": 0
+  },
+  {
+    "site": "site51",
+    "label": "pos",
+    "prob": 0.0,
+    "total_ha": 22.5,
+    "main_ha": 0.0,
+    "clusters": 0
+  },
+  {
+    "site": "site52",
+    "label": "pos",
+    "prob": 0.0,
+    "total_ha": 4.8,
+    "main_ha": 0.0,
+    "clusters": 0
+  },
+  {
+    "site": "site57",
+    "label": "pos",
+    "prob": 0.0,
+    "total_ha": 12.2,
+    "main_ha": 0.0,
+    "clusters": 0
+  },
+  {
+    "site": "site61",
+    "label": "pos",
+    "prob": 0.0,
+    "total_ha": 9.5,
+    "main_ha": 0.0,
+    "clusters": 0
+  },
+  {
+    "site": "site63",
+    "label": "pos",
+    "prob": 0.0,
+    "total_ha": 39.8,
+    "main_ha": 0.0,
+    "clusters": 0
+  },
+  {
+    "site": "site67",
+    "label": "pos",
+    "prob": 0.0,
+    "total_ha": 9.8,
+    "main_ha": 0.0,
+    "clusters": 0
+  },
+  {
+    "site": "site71",
+    "label": "pos",
+    "prob": 0.0,
+    "total_ha": 32.6,
+    "main_ha": 0.0,
+    "clusters": 0
+  },
+  {
+    "site": "site81",
+    "label": "pos",
+    "prob": 0.0,
+    "total_ha": 9.2,
+    "main_ha": 0.0,
+    "clusters": 0
+  },
+  {
+    "site": "site85",
+    "label": "pos",
+    "prob": 0.0,
+    "total_ha": 0.0,
+    "main_ha": 0.0,
+    "clusters": 0
+  },
+  {
+    "site": "site90",
+    "label": "pos",
+    "prob": 0.0,
+    "total_ha": 16.2,
+    "main_ha": 0.0,
+    "clusters": 0
+  },
+  {
+    "site": "site94",
+    "label": "pos",
+    "prob": 0.0,
+    "total_ha": 8.1,
+    "main_ha": 0.0,
+    "clusters": 0
+  },
+  {
+    "site": "site96",
+    "label": "pos",
+    "prob": 0.0,
+    "total_ha": 26.2,
+    "main_ha": 0.0,
+    "clusters": 0
+  },
+  {
+    "site": "site99",
+    "label": "pos",
+    "prob": 0.0,
+    "total_ha": 24.3,
+    "main_ha": 0.0,
+    "clusters": 0
+  },
+  {
+    "site": "site102",
+    "label": "pos",
+    "prob": 0.0,
+    "total_ha": 22.2,
+    "main_ha": 0.0,
+    "clusters": 0
+  },
+  {
+    "site": "site105",
+    "label": "pos",
+    "prob": 0.0,
+    "total_ha": 5.1,
+    "main_ha": 0.0,
+    "clusters": 0
+  },
+  {
+    "site": "site118",
+    "label": "pos",
+    "prob": 0.0,
+    "total_ha": 18.1,
+    "main_ha": 0.0,
+    "clusters": 0
+  },
+  {
+    "site": "site119",
+    "label": "pos",
+    "prob": 0.0,
+    "total_ha": 8.0,
+    "main_ha": 0.0,
+    "clusters": 0
+  },
+  {
+    "site": "site121",
+    "label": "pos",
+    "prob": 0.0,
+    "total_ha": 23.8,
+    "main_ha": 0.0,
+    "clusters": 0
+  },
+  {
+    "site": "site126",
+    "label": "pos",
+    "prob": 0.0,
+    "total_ha": 11.4,
+    "main_ha": 0.0,
+    "clusters": 0
+  },
+  {
+    "site": "site128",
+    "label": "pos",
+    "prob": 0.0,
+    "total_ha": 31.6,
+    "main_ha": 0.0,
+    "clusters": 0
+  },
+  {
+    "site": "site129",
+    "label": "pos",
+    "prob": 0.0,
+    "total_ha": 21.1,
+    "main_ha": 0.0,
+    "clusters": 0
+  },
+  {
+    "site": "site135",
+    "label": "pos",
+    "prob": 0.0,
+    "total_ha": 12.6,
+    "main_ha": 0.0,
+    "clusters": 0
+  },
+  {
+    "site": "site141",
+    "label": "pos",
+    "prob": 0.0,
+    "total_ha": 3.7,
+    "main_ha": 0.0,
+    "clusters": 0
+  },
+  {
+    "site": "site147",
+    "label": "pos",
+    "prob": 0.0,
+    "total_ha": 25.4,
+    "main_ha": 0.0,
+    "clusters": 0
+  },
+  {
+    "site": "site148",
+    "label": "pos",
+    "prob": 0.0,
+    "total_ha": 11.6,
+    "main_ha": 0.0,
+    "clusters": 0
+  },
+  {
+    "site": "site151",
+    "label": "pos",
+    "prob": 0.0,
+    "total_ha": 5.7,
+    "main_ha": 0.0,
+    "clusters": 0
+  },
+  {
+    "site": "site155",
+    "label": "pos",
+    "prob": 0.0,
+    "total_ha": 35.5,
+    "main_ha": 0.0,
+    "clusters": 0
+  },
+  {
+    "site": "site158",
+    "label": "pos",
+    "prob": 0.0,
+    "total_ha": 13.5,
+    "main_ha": 0.0,
+    "clusters": 0
+  },
+  {
+    "site": "site160",
+    "label": "pos",
+    "prob": 0.0,
+    "total_ha": 10.0,
+    "main_ha": 0.0,
+    "clusters": 0
+  },
+  {
+    "site": "site163",
+    "label": "pos",
+    "prob": 0.0,
+    "total_ha": 10.2,
+    "main_ha": 0.0,
+    "clusters": 0
+  },
+  {
+    "site": "site165",
+    "label": "pos",
+    "prob": 0.0,
+    "total_ha": 0.0,
+    "main_ha": 0.0,
+    "clusters": 0
+  },
+  {
+    "site": "site166",
+    "label": "pos",
+    "prob": 0.0,
+    "total_ha": 30.5,
+    "main_ha": 0.0,
+    "clusters": 0
+  },
+  {
+    "site": "site169",
+    "label": "pos",
+    "prob": 0.0,
+    "total_ha": 30.6,
+    "main_ha": 0.0,
+    "clusters": 0
+  },
+  {
+    "site": "site172",
+    "label": "pos",
+    "prob": 0.0,
+    "total_ha": 3.5,
+    "main_ha": 0.0,
+    "clusters": 0
+  },
+  {
+    "site": "site183",
+    "label": "pos",
+    "prob": 0.0,
+    "total_ha": 14.6,
+    "main_ha": 0.0,
+    "clusters": 0
+  },
+  {
+    "site": "site191",
+    "label": "pos",
+    "prob": 0.0,
+    "total_ha": 96.1,
+    "main_ha": 0.0,
+    "clusters": 0
+  },
+  {
+    "site": "site196",
+    "label": "pos",
+    "prob": 0.0,
+    "total_ha": 20.4,
+    "main_ha": 0.0,
+    "clusters": 0
+  },
+  {
+    "site": "site198",
+    "label": "pos",
+    "prob": 0.0,
+    "total_ha": 36.5,
+    "main_ha": 0.0,
+    "clusters": 0
+  },
+  {
+    "site": "site199",
+    "label": "pos",
+    "prob": 0.0,
+    "total_ha": 56.2,
+    "main_ha": 0.0,
+    "clusters": 0
+  },
+  {
+    "site": "site201",
+    "label": "pos",
+    "prob": 0.0,
+    "total_ha": 29.7,
+    "main_ha": 0.0,
+    "clusters": 0
+  },
+  {
+    "site": "site202",
+    "label": "pos",
+    "prob": 0.0,
+    "total_ha": 8.0,
+    "main_ha": 0.0,
+    "clusters": 0
+  },
+  {
+    "site": "site209",
+    "label": "pos",
+    "prob": 0.0,
+    "total_ha": 28.3,
+    "main_ha": 0.0,
+    "clusters": 0
+  },
+  {
+    "site": "site213",
+    "label": "pos",
+    "prob": 0.0,
+    "total_ha": 33.6,
+    "main_ha": 0.0,
+    "clusters": 0
+  },
+  {
+    "site": "site214",
+    "label": "pos",
+    "prob": 0.0,
+    "total_ha": 20.5,
+    "main_ha": 0.0,
+    "clusters": 0
+  },
+  {
+    "site": "site218",
+    "label": "pos",
+    "prob": 0.0,
+    "total_ha": 50.8,
+    "main_ha": 0.0,
+    "clusters": 0
+  },
+  {
+    "site": "site221",
+    "label": "pos",
+    "prob": 0.0,
+    "total_ha": 4.4,
+    "main_ha": 0.0,
+    "clusters": 0
+  },
+  {
+    "site": "site227",
+    "label": "pos",
+    "prob": 0.0,
+    "total_ha": 18.9,
+    "main_ha": 0.0,
+    "clusters": 0
+  },
+  {
+    "site": "site237",
+    "label": "pos",
+    "prob": 0.0,
+    "total_ha": 29.3,
+    "main_ha": 0.0,
+    "clusters": 0
+  },
+  {
+    "site": "site238",
+    "label": "pos",
+    "prob": 0.0,
+    "total_ha": 8.4,
+    "main_ha": 0.0,
+    "clusters": 0
+  },
+  {
+    "site": "site240",
+    "label": "pos",
+    "prob": 0.0,
+    "total_ha": 90.3,
+    "main_ha": 0.0,
+    "clusters": 0
+  },
+  {
+    "site": "site242",
+    "label": "pos",
+    "prob": 0.0,
+    "total_ha": 12.7,
+    "main_ha": 0.0,
+    "clusters": 0
+  },
+  {
+    "site": "site245",
+    "label": "pos",
+    "prob": 0.0,
+    "total_ha": 10.8,
+    "main_ha": 0.0,
+    "clusters": 0
+  },
+  {
+    "site": "site246",
+    "label": "pos",
+    "prob": 0.0,
+    "total_ha": 34.3,
+    "main_ha": 0.0,
+    "clusters": 0
+  },
+  {
+    "site": "site248",
+    "label": "pos",
+    "prob": 0.0,
+    "total_ha": 17.0,
+    "main_ha": 0.0,
+    "clusters": 0
+  },
+  {
+    "site": "site253",
+    "label": "pos",
+    "prob": 0.0,
+    "total_ha": 6.5,
+    "main_ha": 0.0,
+    "clusters": 0
+  },
+  {
+    "site": "site254",
+    "label": "pos",
+    "prob": 0.0,
+    "total_ha": 9.7,
+    "main_ha": 0.0,
+    "clusters": 0
+  },
+  {
+    "site": "site255",
+    "label": "pos",
+    "prob": 0.0,
+    "total_ha": 38.6,
+    "main_ha": 0.0,
+    "clusters": 0
+  },
+  {
+    "site": "site264",
+    "label": "pos",
+    "prob": 0.0,
+    "total_ha": 30.8,
+    "main_ha": 0.0,
+    "clusters": 0
+  },
+  {
+    "site": "site265",
+    "label": "pos",
+    "prob": 0.0,
+    "total_ha": 36.0,
+    "main_ha": 0.0,
+    "clusters": 0
+  },
+  {
+    "site": "site270",
+    "label": "pos",
+    "prob": 0.0,
+    "total_ha": 19.8,
+    "main_ha": 0.0,
+    "clusters": 0
+  },
+  {
+    "site": "site273",
+    "label": "pos",
+    "prob": 0.0,
+    "total_ha": 11.1,
+    "main_ha": 0.0,
+    "clusters": 0
+  },
+  {
+    "site": "site275",
+    "label": "pos",
+    "prob": 0.0,
+    "total_ha": 29.2,
+    "main_ha": 0.0,
+    "clusters": 0
+  },
+  {
+    "site": "site276",
+    "label": "pos",
+    "prob": 0.0,
+    "total_ha": 6.1,
+    "main_ha": 0.0,
+    "clusters": 0
+  },
+  {
+    "site": "site277",
+    "label": "pos",
+    "prob": 0.0,
+    "total_ha": 0.0,
+    "main_ha": 0.0,
+    "clusters": 0
+  },
+  {
+    "site": "site288",
+    "label": "pos",
+    "prob": 0.0,
+    "total_ha": 3.7,
+    "main_ha": 0.0,
+    "clusters": 0
+  },
+  {
+    "site": "site292",
+    "label": "pos",
+    "prob": 0.0,
+    "total_ha": 39.0,
+    "main_ha": 0.0,
+    "clusters": 0
+  },
+  {
+    "site": "site293",
+    "label": "pos",
+    "prob": 0.0,
+    "total_ha": 29.2,
+    "main_ha": 0.0,
+    "clusters": 0
+  },
+  {
+    "site": "site295",
+    "label": "pos",
+    "prob": 0.0,
+    "total_ha": 12.7,
+    "main_ha": 0.0,
+    "clusters": 0
+  },
+  {
+    "site": "site299",
+    "label": "pos",
+    "prob": 0.0,
+    "total_ha": 0.0,
+    "main_ha": 0.0,
+    "clusters": 0
+  }
+]

@@ -31,5 +31,15 @@
         11
       ]
     ]
-  }
+  },
+  "val_auc_cal": 0.8611,
+  "test_auc_cal": 0.8717,
+  "threshold_cal": 0.1,
+  "precision_cal": 0.3704,
+  "recall_cal": 0.9091,
+  "ci_lo": 0.74,
+  "ci_hi": 0.964,
+  "geo_auc_s2n": 0.718,
+  "geo_auc_n2s": 0.686,
+  "geo_auc_mean": 0.702
 }
