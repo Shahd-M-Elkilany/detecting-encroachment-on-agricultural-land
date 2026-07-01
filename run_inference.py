@@ -114,14 +114,38 @@ def run(before_path, after_path, site_name):
     bundle = pickle.load(open(MODEL_PATH,"rb"))
     feat = np.nan_to_num(pair_features(d1,d2), nan=0.0).reshape(1,-1)
     prob = float(bundle["model"].predict_proba(feat)[0,1])
-    ALERT_THRESHOLD  = 0.40   # gate: below this → no-encroachment report
-    VERIFY_AREA_HA   = 80.0   # flag if total cluster area > 80 ha
-    VERIFY_CONF_HA   = 40.0   # flag if area > 40 ha AND RF confidence is marginal
-    VERIFY_CONF_CEIL = 0.60   # "marginal" = RF < 0.60
-    label = "Suspected encroachment (screening alert)" if prob>=ALERT_THRESHOLD else "No encroachment signal"
-    sc = "#ff4444" if prob>=ALERT_THRESHOLD else "#44ff88"
 
-    if prob < ALERT_THRESHOLD:
+    # ── Signal 2: spectral composite score (rule-based) ──────────────────────
+    # pair_features() appends mean_dNDVI (feat[42]) and mean_dNDBI (feat[43])
+    # Positive when NDVI drops (vegetation loss) and/or NDBI rises (built-up)
+    ndvi_d_mean = float(feat[0, 42])
+    ndbi_d_mean = float(feat[0, 43])
+    spectral_score = float(np.clip((-ndvi_d_mean + ndbi_d_mean) * 1.5, 0.0, 1.0))
+
+    # ── Fusion: RF change-detection model × 0.65 + spectral rule × 0.35 ─────
+    # Weights match config/settings.py FINAL_OUTPUT_CONFIG
+    fusion_score = 0.65 * prob + 0.35 * spectral_score
+
+    YELLOW_THRESHOLD = 0.23   # F2-optimal threshold — uncertain zone begins
+    ALERT_THRESHOLD  = 0.40   # high-confidence red alert threshold
+    VERIFY_AREA_HA   = 80.0
+    VERIFY_CONF_HA   = 40.0
+    VERIFY_CONF_CEIL = 0.60
+
+    if fusion_score >= ALERT_THRESHOLD:
+        alarm_level = "red"
+        label = "Red Alert — High-confidence encroachment"
+        sc = "#ff4444"
+    elif fusion_score >= YELLOW_THRESHOLD:
+        alarm_level = "yellow"
+        label = "Yellow Alert — Possible encroachment, verify required"
+        sc = "#e3a030"
+    else:
+        alarm_level = "none"
+        label = "No encroachment signal"
+        sc = "#44ff88"
+
+    if alarm_level == "none":
         no_enc_css = ("body{background:#0d1117;color:#c9d1d9;font-family:'Segoe UI',sans-serif;"
                       "display:flex;flex-direction:column;align-items:center;justify-content:center;"
                       "height:100vh;margin:0;text-align:center}"
@@ -137,9 +161,11 @@ def run(before_path, after_path, site_name):
             "</head><body>",
             "<div><div style='font-size:3rem;margin-bottom:8px'>&#x2705;</div>",
             "<h1 style='color:#44ff88;font-size:1.5rem;margin-bottom:6px'>No Encroachment Detected</h1>",
-            "<p style='color:#6e7681;font-size:0.85rem;margin-bottom:0'>%s &middot; RF score below alert threshold (0.40)</p>" % site_name,
-            "<div class='box'><div class='score'>%.3f</div>" % prob,
-            "<div class='lbl'>RF Score</div></div>",
+            "<p style='color:#6e7681;font-size:0.85rem;margin-bottom:0'>%s &middot; Fusion score %.3f below yellow threshold (%.2f)</p>" % (site_name, fusion_score, YELLOW_THRESHOLD),
+            "<div class='box'><div class='score'>%.3f</div>" % fusion_score,
+            "<div class='lbl'>Fusion Score (RF×0.65 + Spectral×0.35)</div></div>",
+            "<div class='box' style='margin-top:8px'><div class='score' style='font-size:1.1rem'>RF %.3f &nbsp;&nbsp; Spec %.3f</div>" % (prob, spectral_score),
+            "<div class='lbl'>Component Scores</div></div>",
             "<p style='margin-top:20px;font-size:11px;color:#6e7681'>Full report suppressed &mdash; no significant encroachment signal</p>",
             "</div>",
             "<footer>KEMET1 BeforeAfter RF Classifier &middot; Sentinel-2 10m &middot; 2024&rarr;2025 "
@@ -148,7 +174,7 @@ def run(before_path, after_path, site_name):
         ])
         out_html = OUT_DIR/(site_name+"_report.html")
         out_html.write_text(no_enc_html, encoding="utf-8")
-        print(f"HTML (below threshold, RF={prob:.3f}): {out_html}")
+        print(f"HTML (no signal, fusion={fusion_score:.3f} RF={prob:.3f} spec={spectral_score:.3f}): {out_html}")
         return prob, 0, 0, 0
 
     clusters = find_clusters(d1, d2)
@@ -187,8 +213,8 @@ def run(before_path, after_path, site_name):
     cb.ax.tick_params(colors="#aaa"); cb.set_label("ΔNDVI  ±0.5 shared scale",color="#aaa",fontsize=9)
     ax2.set_title("ΔNDVI Raw Spectral Change (not RF output)",color="#e3a030",fontsize=11,fontweight="bold",pad=6)
     ax2.axis("off")
-    fig.suptitle("%s | RF: %.3f | Changed: %.1f ha | Tile: %.1f ha | Largest: %.1f ha"
-                 %(site_name,prob,total_ha,tile_ha,main_ha),color="#c9d1d9",fontsize=11,y=0.97)
+    fig.suptitle("%s | Fusion: %.3f  (RF %.3f×0.65 + Spec %.3f×0.35) | Changed: %.1f ha | Tile: %.1f ha"
+                 %(site_name,fusion_score,prob,spectral_score,total_ha,tile_ha),color="#c9d1d9",fontsize=11,y=0.97)
     out_png = OUT_DIR/(site_name+"_report.png")
     plt.savefig(out_png,dpi=140,bbox_inches="tight",facecolor=BG); plt.close()
     print("PNG:", out_png)
@@ -226,8 +252,10 @@ def run(before_path, after_path, site_name):
     stbl = "\n".join(sidebar_rows)
 
     cards_html = "".join([
-        card("RF Score","%.3f"%prob,sc),
-        card("Verdict",label,sc,sm=True),
+        card("Fusion Score","%.3f"%fusion_score,sc),
+        card("RF Score (×0.65)","%.3f"%prob,"#8ee3ff"),
+        card("Spectral Score (×0.35)","%.3f"%spectral_score,"#8ee3ff"),
+        card("Alarm Level",label,sc,sm=True),
         card("Centre Lat","%.5fN"%clat,"#c9d1d9",sm=True),
         card("Centre Lon","%.5fE"%clon,"#c9d1d9",sm=True),
         card("Total Area Lost","%.1f ha"%total_ha,"#ff8c00"),
@@ -251,8 +279,8 @@ def run(before_path, after_path, site_name):
         + cjs
         + "L.circleMarker([%.5f,%.5f],{radius:5,color:'%s',fillColor:'%s',fillOpacity:0.9,weight:2})"
           % (clat,clon,sc,sc)
-        + ".addTo(map).bindPopup('<b>%s</b><br>RF:%.3f<br>%s<br>Lost:%.1f ha');"
-          % (site_name,prob,label,total_ha)
+        + ".addTo(map).bindPopup('<b>%s</b><br>Fusion:%.3f (RF:%.3f Spec:%.3f)<br>%s<br>Lost:%.1f ha');"
+          % (site_name,fusion_score,prob,spectral_score,label,total_ha)
         + "L.control.layers({'Satellite':sat,'Hybrid':hyb,'OSM':osm}).addTo(map);"
           "L.control.scale().addTo(map);"
     )
@@ -290,7 +318,15 @@ def run(before_path, after_path, site_name):
         "<script src='https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'></script>",
         "<style>"+css+"</style>",
         "</head><body>",
-        "<h1>KEMET1 Screening Alert &mdash; "+site_name+"</h1>",
+        "<h1>KEMET1 %s &mdash; %s</h1>" % (
+            "Red Alert" if alarm_level == "red" else "Yellow Alert", site_name),
+        ('<div style="background:#2d2400;border:1px solid #e3a030;border-radius:6px;'
+         'margin:0 24px 8px;padding:8px 16px;font-size:12px;color:#e3a030">'
+         '&#x26A1; <b>Yellow Alert &mdash; Uncertain Detection</b> &mdash; '
+         'Fusion score %.3f is between yellow (%.2f) and red (%.2f) thresholds. '
+         'Spectral signal: %.3f. Manual verification required before any action.</div>'
+         % (fusion_score, YELLOW_THRESHOLD, ALERT_THRESHOLD, spectral_score))
+        if alarm_level == "yellow" else "",
         ('<div style="background:#2d1800;border:1px solid #e3a030;border-radius:6px;'
          'margin:0 24px 8px;padding:8px 16px;font-size:11px;color:#e3a030">'
          '&#x26A0; <b>Requires Manual Verification</b> -- '
@@ -311,8 +347,10 @@ def run(before_path, after_path, site_name):
         "<script>"+map_script+"</script>",
         "<script>"+GEOCODE_JS+"</script>",
         '<div class="iw"><img src="data:image/png;base64,'+b64+'" alt="Before/After"></div>',
-        "<footer>KEMET1 BeforeAfter RF Classifier · Sentinel-2 10m · Before=2024 After=2025 "
-        "Alert threshold=%.2f &middot; No SCL cloud masking applied &middot; Generated %s UTC</footer>" % (ALERT_THRESHOLD, datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M")),
+        "<footer>KEMET1 BeforeAfter RF Classifier &middot; Sentinel-2 10m &middot; Before=2024 After=2025 "
+        "&middot; Yellow&ge;%.2f / Red&ge;%.2f (Fusion=RF&times;0.65+Spectral&times;0.35) "
+        "&middot; No SCL cloud masking &middot; %s UTC</footer>"
+        % (YELLOW_THRESHOLD, ALERT_THRESHOLD, datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M")),
         "</body></html>",
     ])
 
@@ -341,4 +379,5 @@ def main():
             print("\n"+"="*60+"\n"+sn)
             run(BA_DIR/(sn+"_before_2024.tif"), BA_DIR/(sn+"_after_2025.tif"), sn)
 
-if __name__ ==
+if __name__ == "__main__":
+    main()
