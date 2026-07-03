@@ -8,47 +8,47 @@ An 8-step ML pipeline that compares multi-temporal Sentinel-2 satellite imagery 
 
 ## KEMET1 BeforeAfter Classifier — Results
 
-Trained on 300 co-registered Sentinel-2 tile pairs (before: 2024, after: 2025) covering the Nile Delta. Detects agricultural-land encroachment using 46 spectral-change features derived from NDVI, NDBI, MNDWI, and five additional bands.
+Trained on 300 co-registered Sentinel-2 tile pairs (before: 2024, after: 2025) covering the Nile Delta. Detects agricultural-land encroachment using **44 spectral-change features** (7 statistics × 6 spectral bands + ΔNDVI mean + ΔNDBI mean).
 
 **Auto-labelling:** `pct_conv > 0.02576 OR max_cluster_ha > 3.13` → 78 positive / 222 negative sites  
 **Split:** 70% train / 15% val / 15% test (stratified, seed=42)
 
+> **Circularity fix (v5 — production model):** early versions included `pct_conv` and `pct_new` in the feature vector — features derived from the same spectral threshold that generated the auto-labels. These were removed. The table below shows v5 (non-circular) metrics only.
+
 | Metric | Value | Note |
 |--------|-------|------|
-| **Val AUC** | **0.9444** | Primary / conservative metric |
-| Test AUC | ~1.000 | Inflated — see circularity note |
-| Ablation Val AUC (44 features) | 0.8763 | Without pct_conv & pct_new |
-| Val Confusion @ 0.40 | TN=29 FP=4 FN=2 TP=10 | |
-| Test Confusion @ 0.40 | TN=34 FP=0 FN=0 TP=11 | |
-| Decision threshold | 0.40 | Optimised for high recall |
-
-> **Circularity note:** auto-labels were generated from `pct_conv` and `max_cluster_ha`, both of which are in the 46-feature vector. The ablation model (44 features, removing `pct_conv` and `pct_new`) gives val AUC = **0.8763** — the conservative lower bound on true generalisation.
+| **Val AUC** | **0.861** | Primary metric (v5, non-circular) |
+| **Test AUC** | **0.872** | Held-out test split |
+| Decision threshold | 0.29 | RF probability → alarm |
+| Alarm tiers | High ≥ 0.40 · Medium ≥ 0.23 | Fusion score (0.65×RF + 0.35×spectral) |
 
 ### KEMET1 BeforeAfter — Quick Start
 
 ```powershell
-# Install dependencies
+# Install dependencies (BA inference only — see requirements.txt)
 pip install -r requirements.txt
 
-# Train RF on all 300 BA sites
-python train_ba_classifier.py
-
-# Evaluate on held-out test split (reproduces dashboard)
-python evaluate_ba.py
-
-# Ablation: retrain without circular features
+# Retrain v5 model (non-circular, 44 features) → saves models/ba_rf_model.pkl
 python ablation_no_circular.py
 
-# Single-site inference -> HTML report
-python run_inference.py --before data/KEMET1_BeforeAfter/site0_before_2024.tif `
-                        --after  data/KEMET1_BeforeAfter/site0_after_2025.tif `
-                        --site site0
+# Evaluate on held-out test split (reproduces dashboard metrics)
+python evaluate_ba.py
 
-# Batch: all 78 positive sites -> outputs/ + results/encroachment_summary.html
+# Single-site inference → HTML report in outputs/
+python run_inference.py --site site0
+# (tiles must be at data/KEMET1_BeforeAfter/KEMET1_BeforeAfter_Tiles/site0_before_2024.tif)
+
+# Regenerate all 78 positive-site HTML reports → reports/
 python batch_report.py
 
-# Bake geocoded place names into reports (server-side, no JS loading)
-python geocode_reports.py (Get-ChildItem outputs\*_report.html).FullName
+# Upload one site to backend API
+python upload_case.py site0
+python upload_case.py site0 --dry-run   # preview without submitting
+
+# Batch-upload all 78 positive sites with geocoding + retry logic
+python batch_upload.py
+python batch_upload.py --dry-run
+python batch_upload.py --sites site0 site3 site15   # selective
 
 # View interactive dashboards
 start results\training_results.html
@@ -86,7 +86,7 @@ python predict.py --t1 T1.tif --t2 T2.tif
 | 02 | Cloud Detection | U-Net + ResNet34 (38-Cloud) | Binary cloud mask |
 | 03 | Cloud Removal | OpenCV Telea inpainting | Clean GeoTIFF |
 | 04 | Spectral Indices | NumPy (NDVI, NDBI, MNDWI) | Index rasters |
-| 05 | Change Detection | ChangeFormer (LEVIR-CD) | Binary change map |
+| 05 | Change Detection | NDBI threshold rule (NDBI_after > NDBI_before + 0.08) | Binary change map |
 | 06 | Agriculture Segmentation | SegFormer-B4 (ADE20K) | Agriculture mask |
 | 07 | Building Detection | SAM (SpaceNet v2) | Building footprints |
 | 08 | Final Output | Spatial intersection | Colored map + JSON report |
@@ -109,12 +109,15 @@ python pipeline.py beforeafter --before site0_before_2024.tif \
 
 ```
 models/
-  ba_rf_model.pkl          # KEMET1 BeforeAfter RF (sklearn 1.7.2)
-  ba_rf_ablation.pkl       # Ablation model (44 features)
+  ba_rf_model.pkl          # KEMET1 BeforeAfter RF v5 (44 features, non-circular)
+  ba_rf_ablation.pkl       # Same model retrained via ablation_no_circular.py
   encroachment_classifier_rf.pkl  # Legacy tile classifier
 data/
-  KEMET1_BeforeAfter/      # 300 site pairs (site{N}_before/after_*.tif)
-outputs/                   # Generated per-site HTML reports (gitignored)
+  KEMET1_BeforeAfter/
+    KEMET1_BeforeAfter_Tiles/    # 300 site pairs (site{N}_before_2024.tif / _after_2025.tif)
+  ba_labels.json           # 78 pos / 222 neg ground-truth labels
+reports/                   # Pre-generated per-site HTML reports (78 positive sites)
+outputs/                   # Runtime-generated reports (gitignored)
 src/                       # Pipeline step modules (steps 01-08)
 results/
   training_results.html    # Interactive evaluation dashboard
@@ -123,17 +126,4 @@ results/
   viz/                     # Sample site imagery and change maps
 docs/
   KEMET1_Final_Report.pdf  # Full GP report
-  GP_Presentation.pptx     # Defence presentation (13 slides)
-  datasets_reference.md    # Dataset sources and notes
-```
-
----
-
-## Requirements
-
-```
-rasterio, numpy, scikit-learn, scipy, torch, transformers
-fpdf2, requests, folium, leaflet (via CDN)
-```
-
-See `requirements.txt` for pinned versions.
+  GP

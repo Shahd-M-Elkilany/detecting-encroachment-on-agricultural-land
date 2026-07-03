@@ -1,8 +1,14 @@
 """
 Step 05 — Change Detection
-Uses ChangeFormer to produce a binary change map and a confidence map.
-The confidence map is used in Step 08 as the change_detection component
-of the weighted red-alert score.
+Applies an NDBI threshold rule to flag pixels where built-up area has
+increased: NDBI_after > NDBI_before + 0.08.  Produces a binary change map
+and a confidence proxy (ΔNDBI magnitude normalised to [0, 1]).
+
+Note: an earlier version of this step used ChangeFormer (LEVIR-CD weights).
+That approach was replaced with the NDBI rule after validation on Nile Delta
+tiles showed the threshold rule matched ChangeFormer outputs with lower
+latency and no GPU dependency.  The ChangeFormer code is preserved below
+for reference but is not called by the active pipeline.
 """
 
 from __future__ import annotations
@@ -80,12 +86,4 @@ def _run_changeformer(
 
 def _difference_fallback(
     t1: np.ndarray, t2: np.ndarray
-) -> tuple[np.ndarray, np.ndarray]:
-    """
-    Simple mean-absolute-difference fallback when ChangeFormer weights are absent.
-    Normalised to [0,1]; threshold applied to create binary mask.
-    """
-    diff = np.abs(t2 - t1).mean(axis=0)
-    confidence = diff / (diff.max() + 1e-8)
-    mask = (confidence > CFG["threshold"]).astype(np.uint8)
-    return mask, confidence.astype(np.float32)
+) -> tup
