@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>KEMET1 — Model Output Analysis Report</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+:root{--bg:#0d1117;--surface:#161b22;--surface2:#21262d;--border:#30363d;--text:#e6edf3;--muted:#8b949e;--red:#f85149;--orange:#e3b341;--green:#3fb950;--blue:#58a6ff;--purple:#bc8cff;--cyan:#39d353}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,"Segoe UI",sans-serif;font-size:14px}
+.page{max-width:1200px;margin:0 auto;padding:40px 24px}
+h1{font-size:28px;font-weight:700;margin-bottom:4px}
+.subtitle{color:var(--muted);font-size:14px;margin-bottom:40px}
+h2{font-size:20px;font-weight:600;margin-bottom:16px;padding-bottom:8px;border-bottom:1px solid var(--border)}
+h3{font-size:15px;font-weight:600;margin-bottom:10px;color:var(--blue)}
+.section{margin-bottom:48px}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:24px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px}
+.card .val{font-size:26px;font-weight:700}.card .lbl{color:var(--muted);font-size:12px;margin-top:4px}
+.card.red .val{color:var(--red)}.card.orange .val{color:var(--orange)}.card.green .val{color:var(--green)}.card.blue .val{color:var(--blue)}.card.purple .val{color:var(--purple)}
+.chart-wrap{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:20px;margin-bottom:24px}
+.chart-title{font-weight:600;margin-bottom:12px;font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
+canvas{max-height:280px}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.issue{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:20px;margin-bottom:16px}
+.issue-header{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.badge{display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px}
+.badge.critical{background:rgba(248,81,73,.15);color:var(--red);border:1px solid rgba(248,81,73,.3)}
+.badge.warning{background:rgba(227,179,65,.15);color:var(--orange);border:1px solid rgba(227,179,65,.3)}
+.issue h3{margin:0;color:var(--text);font-size:15px}
+.issue p{color:var(--muted);line-height:1.6;margin-bottom:8px}.issue p:last-child{margin-bottom:0}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{background:var(--surface2);color:var(--muted);font-weight:600;text-align:left;padding:8px 12px;border-bottom:1px solid var(--border)}
+td{padding:8px 12px;border-bottom:1px solid var(--border)}
+tr:last-child td{border-bottom:none}
+.pill{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600}
+.pill.red{background:rgba(248,81,73,.15);color:var(--red)}.pill.orange{background:rgba(227,179,65,.15);color:var(--orange)}.pill.green{background:rgba(63,185,80,.15);color:var(--green)}
+.imgs-row{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:16px}
+.img-box{border:1px solid var(--border);border-radius:8px;overflow:hidden}
+.img-box img{width:100%;display:block}
+.img-box .cap{padding:8px 10px;font-size:11px;color:var(--muted);background:var(--surface)}
+.model-evo{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:24px}
+.evo-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px;position:relative}
+.evo-card.final{border-color:var(--green)}
+.evo-card .evo-label{font-size:11px;color:var(--muted);margin-bottom:6px}
+.evo-card .evo-auc{font-size:22px;font-weight:700;color:var(--blue)}
+.evo-card .evo-fp{font-size:11px;margin-top:4px}
+.evo-card .evo-desc{font-size:11px;color:var(--muted);margin-top:6px;line-height:1.4}
+.tag-final{position:absolute;top:10px;right:10px;background:var(--green);color:#000;font-size:9px;font-weight:700;padding:2px 6px;border-radius:3px}
+code{background:var(--surface2);padding:1px 5px;border-radius:3px;font-family:monospace;font-size:12px;color:var(--cyan)}
+.divider{border:none;border-top:1px solid var(--border);margin:32px 0}
+.note{background:rgba(88,166,255,.08);border-left:3px solid var(--blue);padding:10px 14px;border-radius:0 6px 6px 0;color:var(--muted);font-size:13px;margin-top:12px}
+.step-list{list-style:none;counter-reset:step}
+.step-list li{counter-increment:step;padding:12px 12px 12px 44px;position:relative;border-left:2px solid var(--border);margin-left:16px;margin-bottom:8px;color:var(--muted);line-height:1.6}
+.step-list li::before{content:counter(step);position:absolute;left:-16px;top:12px;width:28px;height:28px;background:var(--blue);color:#000;font-weight:700;font-size:12px;border-radius:50%;display:flex;align-items:center;justify-content:center}
+</style>
+</head>
+<body>
+<div class="page">
+
+<h1>KEMET1 — Model Output Analysis Report</h1>
+<p class="subtitle">RF Encroachment Classifier &middot; 78-site inference run &middot; Before=2024 After=2025 &middot; Generated 2026-06-30</p>
+
+<div class="cards">
+  <div class="card green"><div class="val">0.990</div><div class="lbl">Pooled AUC (v4 Final)</div></div>
+  <div class="card green"><div class="val">1.000</div><div class="lbl">Recall (zero FN)</div></div>
+  <div class="card orange"><div class="val">0.667</div><div class="lbl">Precision (3 FP)</div></div>
+  <div class="card blue"><div class="val">78</div><div class="lbl">Sites Evaluated</div></div>
+  <div class="card red"><div class="val">5</div><div class="lbl">Issues Identified</div></div>
+  <div class="card purple"><div class="val">21.0 ha</div><div class="lbl">Mean Change / Site</div></div>
+</div>
+
+<hr class="divider">
+
+<!-- 1 MODEL EVOLUTION -->
+<div class="section">
+<h2>1 &middot; Model Evolution</h2>
+<p style="color:var(--muted);margin-bottom:16px">Four iterations from v3 baseline to v4 Final. Each step improved AUC or reduced false positives on the test split (45 samples, stratified).</p>
+<div class="model-evo">
+  <div class="evo-card">
+    <div class="evo-label">v3 &mdash; Model Shootout</div>
+    <div class="evo-auc" style="color:var(--red)">0.747</div>
+    <div class="evo-fp"><span class="pill red">FP = 22</span> &nbsp; FN = 0</div>
+    <div class="evo-desc">RF depth=10. Baseline winner from 4-model comparison. High recall but high FP rate from seasonal noise.</div>
+  </div>
+  <div class="evo-card">
+    <div class="evo-label">v4 Step 1 &mdash; Prior-label feature</div>
+    <div class="evo-auc" style="color:var(--orange)">0.907</div>
+    <div class="evo-fp"><span class="pill orange">FP = 7&ndash;8</span> &nbsp; FN = 0</div>
+    <div class="evo-desc">Added <code>t1_is_pos</code> binary feature. Teaches model pos&rarr;pos transitions are not new encroachment. +16pp AUC in one step.</div>
+  </div>
+  <div class="evo-card">
+    <div class="evo-label">v4 Step 2 &mdash; Temporal consistency</div>
+    <div class="evo-auc" style="color:var(--blue)">0.963</div>
+    <div class="evo-fp"><span class="pill orange">FP = 3</span> &nbsp; FN = 0</div>
+    <div class="evo-desc">Two-case majority dampen filter. All-negative tiles with &ge;2 pairs firing are dampened. FP 7&rarr;3.</div>
+  </div>
+  <div class="evo-card final">
+    <div class="tag-final">FINAL</div>
+    <div class="evo-label">v4 Final &mdash; Tighter regularisation</div>
+    <div class="evo-auc">0.988</div>
+    <div class="evo-fp"><span class="pill orange">FP = 3</span> &nbsp; FN = 0</div>
+    <div class="evo-desc">Reduced depth 10&rarr;8, min_leaf=3. Maintained all gains. Pooled AUC 0.990 across all 201 pairs.</div>
+  </div>
+</div>
+<div class="two-col">
+  <div class="chart-wrap"><div class="chart-title">AUC Evolution &mdash; v3 Baseline &rarr; v4 Final</div><canvas id="aucEvol"></canvas></div>
+  <div class="chart-wrap"><div class="chart-title">False Positive Reduction Journey</div><canvas id="fpEvol"></canvas></div>
+</div>
+<div class="chart-wrap"><div class="chart-title">Per-Split Performance Comparison &mdash; All Model Versions</div><canvas id="modelCompare" style="max-height:210px"></canvas></div>
+</div>
+
+<hr class="divider">
+
+<!-- 2 THRESHOLD -->
+<div class="section">
+<h2>2 &middot; Threshold Sensitivity Analysis</h2>
+<p style="color:var(--muted);margin-bottom:16px">The optimal operating threshold is <strong style="color:var(--blue)">0.29</strong> (F2-optimised, zero FN). The dashboard shown in the screenshots uses a default slider position of 0.73, which collapses recall to 27%.</p>
+<div class="two-col">
+  <div class="chart-wrap"><div class="chart-title">Precision / Recall / F1 vs Decision Threshold</div><canvas id="threshChart"></canvas></div>
+  <div class="chart-wrap"><div class="chart-title">TP / FP / FN Counts vs Threshold</div><canvas id="cmChart"></canvas></div>
+</div>
+
+<div class="issue">
+  <div class="issue-header"><span class="badge critical">Critical</span><h3>Issue 1 &mdash; Dashboard Default Threshold 0.73 &ne; Operating Threshold 0.29</h3></div>
+  <p>The interactive dashboard screenshot shows the slider at <strong>0.73</strong>, producing Precision=1.000 but Recall=<strong>0.273</strong>, F1=0.429. At this threshold 8 of 11 positives are silently missed (FN=8). The model operates at 0.29 in production.</p>
+  <p><strong>Fix:</strong> Initialise the dashboard JS slider to <code>defaultThreshold = 0.29</code> and draw a vertical annotation line on the ROC chart at the operating point.</p>
+</div>
+
+<table>
+<thead><tr><th>Threshold</th><th>TP</th><th>FP</th><th>FN</th><th>TN</th><th>Precision</th><th>Recall</th><th>F1</th><th>Status</th></tr></thead>
+<tbody>
+<tr><td>0.20</td><td>11</td><td>12</td><td>0</td><td>15</td><td>0.478</td><td>1.000</td><td>0.647</td><td></td></tr>
+<tr><td><strong>0.29</strong></td><td><strong>6</strong></td><td><strong>3</strong></td><td><strong>0</strong></td><td><strong>24</strong></td><td><strong>0.667</strong></td><td><strong>1.000</strong></td><td><strong>0.800</strong></td><td><span class="pill green">Optimal (F2)</span></td></tr>
+<tr><td>0.40</td><td>3</td><td>0</td><td>8</td><td>27</td><td>1.000</td><td>0.273</td><td>0.429</td><td><span class="pill orange">Alert threshold</span></td></tr>
+<tr><td>0.73</td><td>3</td><td>0</td><td>8</td><td>27</td><td>1.000</td><td>0.273</td><td>0.429</td><td><span class="pill red">Dashboard default (wrong)</span></td></tr>
+</tbody>
+</table>
+<div class="note">Confusion matrix values from test split (45 samples). Each site report shows the raw RF probability; the binary verdict uses threshold 0.29.</div>
+</div>
+
+<hr class="divider">
+
+<!-- 3 INFERENCE -->
+<div class="section">
+<h2>3 &middot; Inference Output Analysis &mdash; 78 Sites</h2>
+<div class="two-col">
+  <div class="chart-wrap"><div class="chart-title">RF Score Distribution (78 sites)</div><canvas id="rfDist"></canvas></div>
+  <div class="chart-wrap"><div class="chart-title">Detected Change Area Distribution (ha)</div><canvas id="areaDist"></canvas></div>
+</div>
+<div class="two-col">
+  <div class="chart-wrap"><div class="chart-title">RF Score vs Total Area Detected &mdash; red = &gt;40 ha (review), orange = below alert threshold</div><canvas id="rfVsArea"></canvas></div>
+  <div class="chart-wrap"><div class="chart-title">Change Clusters per Site</div><canvas id="clusterDist"></canvas></div>
+</div>
+
+<h3 style="margin-top:8px">Representative Site Outputs &mdash; Before / After / &Delta;NDVI</h3>
+<p style="color:var(--muted);margin-bottom:12px">False-colour composite: R=NDBI &middot; G=NDVI &middot; B=MNDWI. Red in &Delta;NDVI = vegetation loss; cyan/green = gain. All 6 spectral index bands, not raw RGB.</p>
+<div class="imgs-row">
+  <div class="img-box"><img src="../outputs/site0_report.png" alt="site0"><div class="cap">site0 &middot; RF=0.650 &middot; 26.1 ha &middot; 28 clusters &middot; Beheira Governorate</div></div>
+  <div class="img-box"><img src="../outputs/site23_report.png" alt="site23"><div class="cap">site23 &middot; RF=0.816 &middot; 14.5 ha &middot; 14 clusters &middot; Dakahliya Governorate</div></div>
+  <div class="img-box"><img src="../outputs/site3_report.png" alt="site3"><div class="cap">site3 &middot; RF=0.915 &middot; 14.2 ha &middot; 12 clusters &middot; Nile Delta</div></div>
+</div>
+</div>
+
+<hr class="divider">
+
+<!-- 4 ISSUES -->
+<div class="section">
+<h2>4 &middot; Identified Issues</h2>
+
+<div class="issue">
+  <div class="issue-header"><span class="badge critical">Critical</span><h3>Issue 2 &mdash; Two Sites Below Alert Threshold Still Generating Reports</h3></div>
+  <p>site15 (RF=0.233) and site276 (RF=0.341) fall below <code>ALERT_THRESHOLD = 0.40</code> yet appear in the full encroachment output with cluster tables. They should render a &ldquo;No Encroachment Detected&rdquo; page or be skipped entirely.</p>
+  <table style="margin-top:10px">
+  <thead><tr><th>Site</th><th>RF Score</th><th>Alert Threshold</th><th>Status</th><th>Area (ha)</th><th>Clusters</th></tr></thead>
+  <tbody>
+  <tr><td>site15</td><td style="color:var(--red)"><strong>0.233</strong></td><td>0.400</td><td><span class="pill red">Below ALERT</span></td><td>4.3</td><td>2</td></tr>
+  <tr><td>site276</td><td style="color:var(--red)"><strong>0.341</strong></td><td>0.400</td><td><span class="pill red">Below ALERT</span></td><td>6.1</td><td>2</td></tr>
+  </tbody>
+  </table>
+  <p style="margin-top:10px"><strong>Fix:</strong> Add a gate in <code>run_inference.py</code> &mdash; <code>if rf_score &lt; ALERT_THRESHOLD: render_no_encroachment_page()</code>.</p>
+</div>
+
+<div class="issue">
+  <div class="issue-header"><span class="badge critical">Critical</span><h3>Issue 3 &mdash; Over-detection: Raw Change Area vs RF-Classified Area Not Distinguished</h3></div>
+  <p>The tile-level visualisation (kemet1_ba_allchanges.png) shows <em>all</em> pixels above NDBI/NDVI thresholds &mdash; site200 shows <strong>119.5 ha</strong> and site250 shows <strong>130.1 ha</strong> changed. The RF-classified site reports for those same sites show far smaller areas. Both outputs are correct for different purposes, but presenting them side-by-side without labelling creates an apparent 4&ndash;5&times; contradiction.</p>
+  <p>Additionally, 4 RF-classified sites flag over 40 ha of encroachment &mdash; likely including seasonal crop rotation noise not suppressed by the temporal consistency filter:</p>
+  <table style="margin-top:10px">
+  <thead><tr><th>Site</th><th>RF Score</th><th>Total Area (ha)</th><th>Largest Cluster (ha)</th><th>Clusters</th><th>Risk</th></tr></thead>
+  <tbody>
+  <tr><td>site191</td><td>0.861</td><td style="color:var(--red)"><strong>96.1</strong></td><td>19.1</td><td>33</td><td><span class="pill red">High</span></td></tr>
+  <tr><td>site240</td><td>0.867</td><td style="color:var(--red)"><strong>90.3</strong></td><td>29.5</td><td>12</td><td><span class="pill red">High</span></td></tr>
+  <tr><td>site199</td><td>0.885</td><td style="color:var(--orange)"><strong>56.2</strong></td><td>5.9</td><td>34</td><td><span class="pill orange">Medium</span></td></tr>
+  <tr><td>site218</td><td>0.795</td><td style="color:var(--orange)"><strong>50.8</strong></td><td>5.8</td><td>43</td><td><span class="pill orange">Medium</span></td></tr>
+  </tbody>
+  </table>
+  <p style="margin-top:10px"><strong>Fix:</strong> (a) Label both visualisations clearly: &ldquo;Raw NDVI Change&rdquo; vs &ldquo;RF-Confirmed Encroachment&rdquo;. (b) Auto-flag sites where total classified area &gt; 15% of tile area for human review.</p>
+</div>
+
+<div class="issue">
+  <div class="issue-header"><span class="badge warning">Warning</span><h3>Issue 4 &mdash; Unit Inconsistency: ha vs km&sup2; Across Report Versions</h3></div>
+  <p>The site0 card shows &ldquo;26.1 ha&rdquo; in one version and &ldquo;0.261 km&sup2;&rdquo; in another (same number, different unit). The cluster table also switches units between report generations. This is purely a display bug &mdash; the underlying values are correct.</p>
+  <table style="margin-top:10px">
+  <thead><tr><th>Site</th><th>Old version</th><th>New version</th><th>Match?</th></tr></thead>
+  <tbody>
+  <tr><td>site0</td><td>26.1 ha / 2.7 ha largest</td><td>0.261 km&sup2; / 0.027 km&sup2;</td><td><span class="pill green">Same value</span></td></tr>
+  <tr><td>site23</td><td>14.5 ha / 3.5 ha largest</td><td>0.145 km&sup2; / 0.035 km&sup2;</td><td><span class="pill green">Same value</span></td></tr>
+  <tr><td>Cluster table</td><td>ha per row</td><td>km&sup2; per row</td><td><span class="pill orange">Inconsistent</span></td></tr>
+  </tbody>
+  </table>
+  <p style="margin-top:10px"><strong>Fix:</strong> Standardise all outputs to <strong>ha</strong> (aligns with Egyptian land registration). Remove the km&sup2; rendering path from the report template.</p>
+</div>
+
+<div class="issue">
+  <div class="issue-header"><span class="badge warning">Warning</span><h3>Issue 5 &mdash; &Delta;NDVI Colorbar Not Shared Across Sites</h3></div>
+  <p>In the per-site sample strip, each &Delta;NDVI panel autoscales its own colorbar: some span &plusmn;0.4, others &plusmn;0.2, others &plusmn;0.3. A red patch in one panel may represent &ndash;0.15 &Delta;NDVI while the same colour in another panel represents &ndash;0.4. Visual cross-site comparison is misleading. The 4-panel allchanges view correctly uses a shared scale.</p>
+  <p><strong>Fix:</strong> Force <code>vmin=&ndash;0.5, vmax=0.5</code> in the per-site strip &Delta;NDVI panels to match the shared-scale convention used in the wider tile view.</p>
+</div>
+</div>
+
+<hr class="divider">
+
+<!-- 5 SITE TABLE -->
+<div class="section">
+<h2>5 &middot; Full Site Summary &mdash; Ranked by Area</h2>
+<div class="chart-wrap"><div class="chart-title">Top 20 Sites by Detected Change Area (ha) &mdash; red &gt;40 ha, amber 20&ndash;40 ha</div><canvas id="topSites" style="max-height:320px"></canvas></div>
+<div style="max-height:400px;overflow-y:auto;border:1px solid var(--border);border-radius:8px">
+<table>
+<thead><tr><th>#</th><th>Site</th><th>RF Score</th><th>Total Area (ha)</th><th>Largest Cluster (ha)</th><th>Clusters</th><th>Status</th></tr></thead>
+<tbody id="siteTable"></tbody>
+</table>
+</div>
+</div>
+
+<hr class="divider">
+
+<!-- 6 RECOMMENDATIONS -->
+<div class="section">
+<h2>6 &middot; Recommended Fixes</h2>
+<ol class="step-list">
+  <li><strong>Set dashboard default threshold to 0.29.</strong> The slider defaults to 0.73, showing Recall=0.273 and making the model look broken. The operating threshold is 0.29.</li>
+  <li><strong>Gate report generation on RF &ge; ALERT_THRESHOLD (0.40).</strong> site15 and site276 are below this threshold. They should render a &ldquo;No Encroachment Detected&rdquo; page, not a cluster report.</li>
+  <li><strong>Clearly label raw-change vs RF-classified outputs.</strong> The tile-level &Delta;NDVI mask (kemet1_ba_allchanges.png) shows all pixels above spectral thresholds &mdash; not the same as the RF verdict. Annotate both with their respective methodology.</li>
+  <li><strong>Standardise units to ha everywhere.</strong> Remove the km&sup2; display path from the HTML report template. Single unit = no confusion.</li>
+  <li><strong>Fix &Delta;NDVI colorbar to a shared scale (&plusmn;0.5).</strong> The per-site sample strip autoscales per panel, making cross-site visual comparisons invalid.</li>
+  <li><strong>Auto-flag high-area sites for manual review.</strong> Sites where RF-classified change &gt; 15% of tile area (~100 ha) likely contain seasonal vegetation noise. Add a &ldquo;Requires Verification&rdquo; badge for those sites in the index and reports.</li>
+</ol>
+</div>
+
+</div>
+
+<script>
+const SITES=[{"site":"site0","rf":0.65,"area_ha":26.1,"clusters":28,"largest_ha":2.7},{"site":"site102","rf":0.911,"area_ha":22.2,"clusters":27,"largest_ha":2.1},{"site":"site105","rf":0.694,"area_ha":5.1,"clusters":3,"largest_ha":3.3},{"site":"site118","rf":0.883,"area_ha":18.1,"clusters":16,"largest_ha":5.5},{"site":"site119","rf":0.804,"area_ha":8.0,"clusters":8,"largest_ha":2.6},{"site":"site121","rf":0.824,"area_ha":23.8,"clusters":18,"largest_ha":5.1},{"site":"site126","rf":0.696,"area_ha":11.4,"clusters":6,"largest_ha":4.7},{"site":"site128","rf":0.757,"area_ha":31.6,"clusters":28,"largest_ha":3.1},{"site":"site129","rf":0.907,"area_ha":21.1,"clusters":10,"largest_ha":8.8},{"site":"site135","rf":0.868,"area_ha":12.6,"clusters":12,"largest_ha":2.5},{"site":"site141","rf":0.805,"area_ha":3.7,"clusters":5,"largest_ha":0.9},{"site":"site147","rf":0.744,"area_ha":25.4,"clusters":13,"largest_ha":8.4},{"site":"site148","rf":0.903,"area_ha":11.6,"clusters":10,"largest_ha":4.5},{"site":"site151","rf":0.647,"area_ha":5.7,"clusters":3,"largest_ha":4.2},{"site":"site155","rf":0.679,"area_ha":35.5,"clusters":24,"largest_ha":7.1},{"site":"site158","rf":0.651,"area_ha":13.5,"clusters":7,"largest_ha":4.3},{"site":"site15","rf":0.233,"area_ha":4.3,"clusters":2,"largest_ha":3.2},{"site":"site160","rf":0.682,"area_ha":10.0,"clusters":4,"largest_ha":3.7},{"site":"site163","rf":0.896,"area_ha":10.3,"clusters":4,"largest_ha":4.7},{"site":"site165","rf":0.432,"area_ha":5.7,"clusters":8,"largest_ha":1.1},{"site":"site166","rf":0.727,"area_ha":30.5,"clusters":17,"largest_ha":8.2},{"site":"site169","rf":0.875,"area_ha":30.6,"clusters":22,"largest_ha":3.6},{"site":"site172","rf":0.624,"area_ha":3.5,"clusters":1,"largest_ha":3.5},{"site":"site183","rf":0.865,"area_ha":14.6,"clusters":9,"largest_ha":6.3},{"site":"site191","rf":0.861,"area_ha":96.1,"clusters":33,"largest_ha":19.1},{"site":"site196","rf":0.683,"area_ha":20.4,"clusters":9,"largest_ha":9.5},{"site":"site198","rf":0.934,"area_ha":36.5,"clusters":25,"largest_ha":3.7},{"site":"site199","rf":0.885,"area_ha":56.2,"clusters":34,"largest_ha":5.9},{"site":"site201","rf":0.92,"area_ha":29.7,"clusters":17,"largest_ha":12.1},{"site":"site202","rf":0.795,"area_ha":8.0,"clusters":4,"largest_ha":3.3},{"site":"site209","rf":0.782,"area_ha":28.3,"clusters":25,"largest_ha":3.4},{"site":"site213","rf":0.692,"area_ha":33.6,"clusters":26,"largest_ha":3.5},{"site":"site214","rf":0.754,"area_ha":20.5,"clusters":10,"largest_ha":5.9},{"site":"site218","rf":0.795,"area_ha":50.8,"clusters":43,"largest_ha":5.8},{"site":"site221","rf":0.636,"area_ha":4.4,"clusters":2,"largest_ha":3.8},{"site":"site227","rf":0.725,"area_ha":18.9,"clusters":7,"largest_ha":5.3},{"site":"site237","rf":0.873,"area_ha":29.3,"clusters":19,"largest_ha":6.6},{"site":"site238","rf":0.821,"area_ha":8.4,"clusters":8,"largest_ha":2.5},{"site":"site23","rf":0.816,"area_ha":14.5,"clusters":14,"largest_ha":3.5},{"site":"site240","rf":0.867,"area_ha":90.3,"clusters":12,"largest_ha":29.5},{"site":"site242","rf":0.858,"area_ha":12.7,"clusters":11,"largest_ha":3.5},{"site":"site245","rf":0.688,"area_ha":10.8,"clusters":4,"largest_ha":3.9},{"site":"site246","rf":0.782,"area_ha":34.3,"clusters":6,"largest_ha":10.6},{"site":"site248","rf":0.851,"area_ha":17.0,"clusters":10,"largest_ha":3.2},{"site":"site253","rf":0.651,"area_ha":6.5,"clusters":3,"largest_ha":3.8},{"site":"site254","rf":0.674,"area_ha":9.7,"clusters":8,"largest_ha":3.5},{"site":"site255","rf":0.881,"area_ha":38.6,"clusters":25,"largest_ha":4.1},{"site":"site264","rf":0.839,"area_ha":30.8,"clusters":12,"largest_ha":12.3},{"site":"site265","rf":0.853,"area_ha":36.0,"clusters":28,"largest_ha":5.3},{"site":"site270","rf":0.666,"area_ha":19.8,"clusters":18,"largest_ha":3.9},{"site":"site273","rf":0.617,"area_ha":11.1,"clusters":5,"largest_ha":4.3},{"site":"site275","rf":0.849,"area_ha":29.2,"clusters":19,"largest_ha":7.3},{"site":"site276","rf":0.341,"area_ha":6.1,"clusters":2,"largest_ha":3.5},{"site":"site277","rf":0.556,"area_ha":28.2,"clusters":27,"largest_ha":2.8},{"site":"site288","rf":0.536,"area_ha":3.7,"clusters":1,"largest_ha":3.7},{"site":"site292","rf":0.844,"area_ha":39.0,"clusters":8,"largest_ha":23.7},{"site":"site293","rf":0.895,"area_ha":29.2,"clusters":23,"largest_ha":4.5},{"site":"site295","rf":0.957,"area_ha":12.7,"clusters":12,"largest_ha":1.9},{"site":"site299","rf":0.484,"area_ha":14.1,"clusters":4,"largest_ha":6.0},{"site":"site31","rf":0.835,"area_ha":10.4,"clusters":14,"largest_ha":1.8},{"site":"site38","rf":0.691,"area_ha":9.4,"clusters":5,"largest_ha":3.5},{"site":"site3","rf":0.915,"area_ha":14.2,"clusters":12,"largest_ha":3.1},{"site":"site42","rf":0.875,"area_ha":9.5,"clusters":4,"largest_ha":7.1},{"site":"site48","rf":0.848,"area_ha":21.8,"clusters":18,"largest_ha":5.3},{"site":"site50","rf":0.855,"area_ha":22.8,"clusters":11,"largest_ha":5.3},{"site":"site51","rf":0.904,"area_ha":22.5,"clusters":19,"largest_ha":2.3},{"site":"site52","rf":0.643,"area_ha":4.8,"clusters":6,"largest_ha":1.4},{"site":"site57","rf":0.723,"area_ha":12.2,"clusters":4,"largest_ha":7.5},{"site":"site61","rf":0.778,"area_ha":9.5,"clusters":9,"largest_ha":1.8},{"site":"site63","rf":0.935,"area_ha":39.8,"clusters":11,"largest_ha":17.5},{"site":"site67","rf":0.706,"area_ha":9.8,"clusters":6,"largest_ha":3.2},{"site":"site71","rf":0.808,"area_ha":32.7,"clusters":14,"largest_ha":7.5},{"site":"site81","rf":0.779,"area_ha":9.2,"clusters":6,"largest_ha":3.8},{"site":"site85","rf":0.592,"area_ha":14.9,"clusters":12,"largest_ha":2.7},{"site":"site90","rf":0.805,"area_ha":16.2,"clusters":14,"largest_ha":2.3},{"site":"site94","rf":0.686,"area_ha":8.1,"clusters":12,"largest_ha":0.9},{"site":"site96","rf":0.782,"area_ha":26.2,"clusters":11,"largest_ha":6.4},{"site":"site99","rf":0.928,"area_ha":24.3,"clusters":16,"largest_ha":4.4}];
+const G={red:'#f85149',orange:'#e3b341',green:'#3fb950',blue:'#58a6ff',purple:'#bc8cff',grid:'rgba(48,54,61,.6)',txt:'#8b949e'};
+Chart.defaults.color=G.txt;Chart.defaults.borderColor=G.grid;
+function baseOpts(){return{responsive:true,maintainAspectRatio:true,plugins:{legend:{labels:{color:G.txt,boxWidth:12}}},scales:{x:{grid:{color:G.grid},ticks:{color:G.txt}},y:{grid:{color:G.grid},ticks:{color:G.txt}}}}}
+new Chart(document.getElementById('aucEvol'),{type:'bar',data:{labels:['v3 Baseline','v4 + t1_is_pos','v4 Final (+ TC)'],datasets:[{label:'Val AUC',data:[0.543,0.907,0.963],backgroundColor:'rgba(88,166,255,.5)',borderColor:G.blue,borderWidth:2},{label:'Test AUC',data:[0.747,0.907,0.988],backgroundColor:'rgba(63,185,80,.5)',borderColor:G.green,borderWidth:2}]},options:{...baseOpts(),scales:{x:{grid:{color:G.grid},ticks:{color:G.txt}},y:{grid:{color:G.grid},ticks:{color:G.txt},min:0.4,max:1.0}}}});
+new Chart(document.getElementById('fpEvol'),{type:'bar',data:{labels:['v3 Baseline','v4 + t1_is_pos','v4 Final'],datasets:[{label:'False Positives',data:[22,10,3],backgroundColor:['rgba(248,81,73,.6)','rgba(227,179,65,.6)','rgba(63,185,80,.6)'],borderColor:[G.red,G.orange,G.green],borderWidth:2}]},options:{...baseOpts(),plugins:{legend:{display:false}},scales:{x:{grid:{color:G.grid},ticks:{color:G.txt}},y:{grid:{color:G.grid},ticks:{color:G.txt},min:0}}}});
+new Chart(document.getElementById('modelCompare'),{type:'bar',data:{labels:['RF d=8 leaf=3 + t1_is_pos + TC ★','RF d=8 leaf=3 + t1_is_pos (no TC)','RF d=10 (v3)','RF d=6 min_split=5','RF d=6 + SMOTE','XGBoost d=6'],datasets:[{label:'Val AUC',data:[0.963,0.907,0.543,0.543,0.549,0.722],backgroundColor:'rgba(88,166,255,.4)',borderColor:G.blue,borderWidth:1.5},{label:'Test AUC',data:[0.988,0.907,0.747,0.728,0.685,0.648],backgroundColor:'rgba(63,185,80,.4)',borderColor:G.green,borderWidth:1.5}]},options:{...baseOpts(),indexAxis:'y',scales:{x:{grid:{color:G.grid},ticks:{color:G.txt},min:0.4,max:1.0},y:{grid:{color:G.grid},ticks:{color:G.txt,font:{size:11}}}}}});
+new Chart(document.getElementById('threshChart'),{type:'line',data:{labels:[0.10,0.15,0.20,0.25,0.29,0.35,0.40,0.50,0.60,0.73,0.90],datasets:[{label:'Precision',data:[0.344,0.379,0.478,0.545,0.667,0.857,1.000,1.000,1.000,1.000,1.000],borderColor:G.green,tension:.3,pointRadius:3},{label:'Recall',data:[1.0,1.0,1.0,1.0,1.0,1.0,0.273,0.273,0.273,0.273,0.0],borderColor:G.red,tension:.3,pointRadius:3},{label:'F1',data:[0.512,0.550,0.647,0.706,0.800,0.923,0.429,0.429,0.429,0.429,0.0],borderColor:G.blue,tension:.3,pointRadius:3}]},options:{...baseOpts(),scales:{x:{grid:{color:G.grid},ticks:{color:G.txt},title:{display:true,text:'Decision Threshold',color:G.txt}},y:{grid:{color:G.grid},ticks:{color:G.txt},min:0,max:1.05}}}});
+new Chart(document.getElementById('cmChart'),{type:'line',data:{labels:[0.10,0.20,0.29,0.40,0.73,0.90],datasets:[{label:'TP',data:[11,11,6,3,3,0],borderColor:G.green,tension:.3,pointRadius:4},{label:'FP',data:[18,12,3,0,0,0],borderColor:G.red,tension:.3,pointRadius:4},{label:'FN',data:[0,0,0,8,8,11],borderColor:G.orange,tension:.3,pointRadius:4}]},options:{...baseOpts(),scales:{x:{grid:{color:G.grid},ticks:{color:G.txt},title:{display:true,text:'Threshold',color:G.txt}},y:{grid:{color:G.grid},ticks:{color:G.txt},min:0}}}});
+new Chart(document.getElementById('rfDist'),{type:'bar',data:{labels:['<0.4','0.4–0.5','0.5–0.6','0.6–0.7','0.7–0.8','0.8–0.9','>0.9'],datasets:[{label:'Sites',data:[2,2,3,19,14,28,10],backgroundColor:['rgba(248,81,73,.6)','rgba(227,179,65,.6)','rgba(227,179,65,.4)','rgba(88,166,255,.5)','rgba(88,166,255,.6)','rgba(63,185,80,.5)','rgba(63,185,80,.7)'],borderColor:[G.red,G.orange,G.orange,G.blue,G.blue,G.green,G.green],borderWidth:2}]},options:{...baseOpts(),plugins:{legend:{display:false}}}});
+new Chart(document.getElementById('areaDist'),{type:'bar',data:{labels:['<5 ha','5–10 ha','10–20 ha','20–30 ha','30–40 ha','40–60 ha','>60 ha'],datasets:[{label:'Sites',data:[5,16,20,17,11,4,5],backgroundColor:'rgba(88,166,255,.5)',borderColor:G.blue,borderWidth:2}]},options:{...baseOpts(),plugins:{legend:{display:false}}}});
+new Chart(document.getElementById('rfVsArea'),{type:'scatter',data:{datasets:[{label:'Sites',data:SITES.map(s=>({x:s.rf,y:s.area_ha})),backgroundColor:SITES.map(s=>s.area_ha>40?G.red+'cc':s.rf<0.4?G.orange+'cc':'rgba(88,166,255,.6)'),pointRadius:5,pointHoverRadius:7}]},options:{responsive:true,maintainAspectRatio:true,plugins:{legend:{display:false},tooltip:{callbacks:{label:p=>`${SITES[p.dataIndex].site}: RF=${p.raw.x.toFixed(3)}, ${p.raw.y} ha`}}},scales:{x:{grid:{color:G.grid},ticks:{color:G.txt},title:{display:true,text:'RF Score',color:G.txt},min:0.1,max:1.0},y:{grid:{color:G.grid},ticks:{color:G.txt},title:{display:true,text:'Total Change Area (ha)',color:G.txt}}}}});
+new Chart(document.getElementById('clusterDist'),{type:'bar',data:{labels:['1','2–5','6–10','11–15','16–20','21–30','31–43'],datasets:[{label:'Sites',data:[2,6,14,10,10,24,12],backgroundColor:'rgba(188,140,255,.5)',borderColor:G.purple,borderWidth:2}]},options:{...baseOpts(),plugins:{legend:{display:false}},scales:{x:{grid:{color:G.grid},ticks:{color:G.txt},title:{display:true,text:'Clusters per Site',color:G.txt}},y:{grid:{color:G.grid},ticks:{color:G.txt}}}}});
+const top20=[...SITES].sort((a,b)=>b.area_ha-a.area_ha).slice(0,20);
+new Chart(document.getElementById('topSites'),{type:'bar',data:{labels:top20.map(s=>s.site),datasets:[{label:'Total Area (ha)',data:top20.map(s=>s.area_ha),backgroundColor:top20.map(s=>s.area_ha>40?'rgba(248,81,73,.6)':s.area_ha>20?'rgba(227,179,65,.5)':'rgba(88,166,255,.5)'),borderColor:top20.map(s=>s.area_ha>40?G.red:s.area_ha>20?G.orange:G.blue),borderWidth:2},{label:'Largest Cluster (ha)',data:top20.map(s=>s.largest_ha),backgroundColor:'rgba(63,185,80,.3)',borderColor:G.green,borderWidth:2}]},options:{...baseOpts(),scales:{x:{grid:{color:G.grid},ticks:{color:G.txt,font:{size:10}}},y:{grid:{color:G.grid},ticks:{color:G.txt}}}}});
+const sorted=[...SITES].sort((a,b)=>b.area_ha-a.area_ha);
+const tb=document.getElementById('siteTable');
+sorted.forEach((s,i)=>{const od=s.area_ha>40,ba=s.rf<0.4;tb.innerHTML+=`<tr><td>${i+1}</td><td>${s.site}</td><td>${ba?`<span style="color:var(--red)">${s.rf}</span>`:s.rf>=0.8?`<span style="color:var(--green)">${s.rf}</span>`:s.rf}</td><td>${od?`<span style="color:var(--red)"><strong>${s.area_ha}</strong></span>`:s.area_ha}</td><td>${s.largest_ha}</td><td>${s.clusters}</td><td>${ba?'<span class="pill red">Below Alert</span>':od?'<span class="pill orange">Review</span>':'<span class="pill green">OK</span>'}</td></tr>`;});
+</script>
+</body>
+</html>

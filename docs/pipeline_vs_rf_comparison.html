@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>KEMET1 — Full Pipeline vs RF Classifier Comparison</title>
+<style>
+  :root {
+    --bg: #0d1117; --card: #161b22; --border: #30363d;
+    --text: #e6edf3; --muted: #7d8590; --accent: #58a6ff;
+    --red: #f85149; --yellow: #e3b341; --green: #3fb950; --orange: #d29922;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 14px; padding: 32px; }
+  h1 { font-size: 22px; font-weight: 700; margin-bottom: 4px; }
+  .subtitle { color: var(--muted); margin-bottom: 32px; font-size: 13px; }
+  .legend { display: flex; gap: 24px; margin-bottom: 28px; font-size: 12px; color: var(--muted); }
+  .legend span { display: flex; align-items: center; gap: 6px; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+
+  /* Site cards */
+  .site-card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; margin-bottom: 20px; overflow: hidden; }
+  .site-header { display: flex; align-items: center; gap: 16px; padding: 14px 20px; border-bottom: 1px solid var(--border); background: #0d1117; }
+  .site-name { font-size: 16px; font-weight: 700; color: var(--accent); }
+  .alarm-badge { padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 700; letter-spacing: .5px; }
+  .alarm-red    { background: rgba(248,81,73,.15); color: var(--red); border: 1px solid rgba(248,81,73,.3); }
+  .alarm-yellow { background: rgba(227,179,65,.15); color: var(--yellow); border: 1px solid rgba(227,179,65,.3); }
+  .rf-prob { font-size: 13px; color: var(--muted); margin-left: auto; }
+  .rf-prob strong { color: var(--text); }
+
+  /* Two-column split */
+  .cols { display: grid; grid-template-columns: 1fr 1fr; }
+  .col { padding: 18px 24px; }
+  .col + .col { border-left: 1px solid var(--border); }
+  .col-title { font-size: 11px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--muted); margin-bottom: 14px; }
+
+  /* Metric rows */
+  .metric { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid #1c2128; }
+  .metric:last-child { border-bottom: none; }
+  .metric-label { color: var(--muted); font-size: 12px; }
+  .metric-value { font-weight: 600; font-size: 13px; }
+  .val-red    { color: var(--red); }
+  .val-yellow { color: var(--yellow); }
+  .val-green  { color: var(--green); }
+  .val-blue   { color: var(--accent); }
+
+  /* Bar chart */
+  .bar-wrap { margin-top: 10px; }
+  .bar-row { display: flex; align-items: center; gap: 8px; margin-bottom: 7px; font-size: 11px; }
+  .bar-label { width: 90px; color: var(--muted); text-align: right; flex-shrink: 0; }
+  .bar-track { flex: 1; background: #1c2128; border-radius: 3px; height: 8px; overflow: hidden; }
+  .bar-fill  { height: 100%; border-radius: 3px; }
+  .bar-num   { width: 50px; text-align: right; color: var(--text); font-weight: 600; }
+
+  /* Agreement indicator */
+  .agree-row { display: flex; align-items: center; gap: 10px; padding: 10px 24px 14px; border-top: 1px solid var(--border); font-size: 12px; }
+  .agree-icon { font-size: 16px; }
+  .agree-text { color: var(--muted); }
+  .agree-text strong { color: var(--text); }
+
+  /* Summary table */
+  .summary { margin-top: 36px; }
+  .summary h2 { font-size: 16px; margin-bottom: 14px; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  th { text-align: left; color: var(--muted); font-weight: 600; font-size: 11px; letter-spacing: .5px; padding: 8px 12px; border-bottom: 2px solid var(--border); }
+  td { padding: 9px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: #1c2128; }
+  .tag { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: 700; }
+  .tag-agree    { background: rgba(63,185,80,.12); color: var(--green); }
+  .tag-diverge  { background: rgba(248,81,73,.12); color: var(--red); }
+  .tag-partial  { background: rgba(227,179,65,.12); color: var(--yellow); }
+
+  /* Footer note */
+  .note { margin-top: 28px; padding: 14px 18px; background: var(--card); border: 1px solid var(--border); border-radius: 8px; font-size: 12px; color: var(--muted); line-height: 1.7; }
+  .note strong { color: var(--text); }
+</style>
+</head>
+<body>
+
+<h1>KEMET1 — Full Pipeline vs RF Classifier</h1>
+<p class="subtitle">Comparison on 5 held-out positive sites · Fallback mode (no GPU / no deep-learning weights)</p>
+
+<div class="legend">
+  <span><span class="dot" style="background:var(--red)"></span> Red Alert (RF prob ≥ 0.40)</span>
+  <span><span class="dot" style="background:var(--yellow)"></span> Yellow Alert (RF prob ≥ 0.23)</span>
+  <span><span class="dot" style="background:var(--accent)"></span> Pipeline metric</span>
+</div>
+
+<!-- SITE CARDS -->
+
+<!-- site105 -->
+<div class="site-card">
+  <div class="site-header">
+    <span class="site-name">site105</span>
+    <span class="alarm-badge alarm-red">🔴 RED ALERT</span>
+    <span class="rf-prob">RF prob: <strong>0.547</strong></span>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="col-title">RF Classifier (tile-level)</div>
+      <div class="metric"><span class="metric-label">RF probability</span><span class="metric-value val-red">0.547</span></div>
+      <div class="metric"><span class="metric-label">Red encroachment area</span><span class="metric-value val-red">14.2 ha</span></div>
+      <div class="metric"><span class="metric-label">Yellow spectral area</span><span class="metric-value val-yellow">3.1 ha</span></div>
+      <div class="metric"><span class="metric-label">Alert tier</span><span class="metric-value val-red">High-confidence Red</span></div>
+    </div>
+    <div class="col">
+      <div class="col-title">Full Pipeline (pixel-level, Steps 01–07)</div>
+      <div class="metric"><span class="metric-label">Changed pixels (Step 05)</span><span class="metric-value val-blue">2.0%</span></div>
+      <div class="metric"><span class="metric-label">Agricultural cover (Step 06)</span><span class="metric-value val-green">76.7%</span></div>
+      <div class="metric"><span class="metric-label">Spectral degradation (Step 04)</span><span class="metric-value val-yellow">9.8%</span></div>
+      <div class="metric"><span class="metric-label">Built-up expansion (Step 07)</span><span class="metric-value val-red">0.00 ha · 0 polygons</span></div>
+    </div>
+  </div>
+  <div class="agree-row">
+    <span class="agree-icon">⚠️</span>
+    <span class="agree-text"><strong>Partial agreement.</strong> RF flags high-confidence encroachment (0.547) but the pipeline's NDBI-delta Step 07 finds no built-up pixels meeting the 0.05 threshold in the ROI. Change signal is small (2%) — the encroachment may be non-building (bare soil / land-use change) that the RF 44-feature vector captures but NDBI doesn't confirm.</span>
+  </div>
+</div>
+
+<!-- site81 -->
+<div class="site-card">
+  <div class="site-header">
+    <span class="site-name">site81</span>
+    <span class="alarm-badge alarm-red">🔴 RED ALERT</span>
+    <span class="rf-prob">RF prob: <strong>0.463</strong></span>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="col-title">RF Classifier (tile-level)</div>
+      <div class="metric"><span class="metric-label">RF probability</span><span class="metric-value val-red">0.463</span></div>
+      <div class="metric"><span class="metric-label">Red encroachment area</span><span class="metric-value val-red">31.6 ha</span></div>
+      <div class="metric"><span class="metric-label">Yellow spectral area</span><span class="metric-value val-yellow">3.1 ha</span></div>
+      <div class="metric"><span class="metric-label">Alert tier</span><span class="metric-value val-red">High-confidence Red</span></div>
+    </div>
+    <div class="col">
+      <div class="col-title">Full Pipeline (pixel-level, Steps 01–07)</div>
+      <div class="metric"><span class="metric-label">Changed pixels (Step 05)</span><span class="metric-value val-blue">3.0%</span></div>
+      <div class="metric"><span class="metric-label">Agricultural cover (Step 06)</span><span class="metric-value val-green">83.0%</span></div>
+      <div class="metric"><span class="metric-label">Spectral degradation (Step 04)</span><span class="metric-value val-yellow">5.2%</span></div>
+      <div class="metric"><span class="metric-label">Built-up expansion (Step 07)</span><span class="metric-value val-red">1.69 ha · 1 polygon</span></div>
+    </div>
+  </div>
+  <div class="bar-wrap" style="padding: 0 24px 14px">
+    <div class="bar-row"><span class="bar-label">Changed %</span><div class="bar-track"><div class="bar-fill" style="width:30%;background:var(--accent)"></div></div><span class="bar-num">3.0%</span></div>
+    <div class="bar-row"><span class="bar-label">Agri %</span><div class="bar-track"><div class="bar-fill" style="width:83%;background:var(--green)"></div></div><span class="bar-num">83%</span></div>
+    <div class="bar-row"><span class="bar-label">Bldg ha</span><div class="bar-track"><div class="bar-fill" style="width:17%;background:var(--red)"></div></div><span class="bar-num">1.69</span></div>
+  </div>
+  <div class="agree-row">
+    <span class="agree-icon">✅</span>
+    <span class="agree-text"><strong>Agreement.</strong> Both methods detect encroachment. RF (0.463) gives borderline Red; pipeline finds 1.69 ha of confirmed built-up on former farmland (83% agricultural), 1 polygon. Small spatial footprint consistent with a modest new structure.</span>
+  </div>
+</div>
+
+<!-- site276 -->
+<div class="site-card">
+  <div class="site-header">
+    <span class="site-name">site276</span>
+    <span class="alarm-badge alarm-red">🔴 RED ALERT</span>
+    <span class="rf-prob">RF prob: <strong>0.409</strong></span>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="col-title">RF Classifier (tile-level)</div>
+      <div class="metric"><span class="metric-label">RF probability</span><span class="metric-value val-red">0.409</span></div>
+      <div class="metric"><span class="metric-label">Red encroachment area</span><span class="metric-value val-red">15.3 ha</span></div>
+      <div class="metric"><span class="metric-label">Yellow spectral area</span><span class="metric-value val-yellow">6.2 ha</span></div>
+      <div class="metric"><span class="metric-label">Alert tier</span><span class="metric-value val-red">High-confidence Red</span></div>
+    </div>
+    <div class="col">
+      <div class="col-title">Full Pipeline (pixel-level, Steps 01–07)</div>
+      <div class="metric"><span class="metric-label">Changed pixels (Step 05)</span><span class="metric-value val-blue">4.0%</span></div>
+      <div class="metric"><span class="metric-label">Agricultural cover (Step 06)</span><span class="metric-value val-green">93.2%</span></div>
+      <div class="metric"><span class="metric-label">Spectral degradation (Step 04)</span><span class="metric-value val-yellow">14.8%</span></div>
+      <div class="metric"><span class="metric-label">Built-up expansion (Step 07)</span><span class="metric-value val-red">7.73 ha · 5 polygons</span></div>
+    </div>
+  </div>
+  <div class="bar-wrap" style="padding: 0 24px 14px">
+    <div class="bar-row"><span class="bar-label">Changed %</span><div class="bar-track"><div class="bar-fill" style="width:40%;background:var(--accent)"></div></div><span class="bar-num">4.0%</span></div>
+    <div class="bar-row"><span class="bar-label">Agri %</span><div class="bar-track"><div class="bar-fill" style="width:93%;background:var(--green)"></div></div><span class="bar-num">93%</span></div>
+    <div class="bar-row"><span class="bar-label">Bldg ha</span><div class="bar-track"><div class="bar-fill" style="width:77%;background:var(--red)"></div></div><span class="bar-num">7.73</span></div>
+  </div>
+  <div class="agree-row">
+    <span class="agree-icon">✅</span>
+    <span class="agree-text"><strong>Strong agreement.</strong> Highest-agricultural site in the set (93.2% farmland). Pipeline detects 7.73 ha across 5 separate polygons — multiple distinct structures on former farmland, consistent with RF borderline-Red verdict (0.409, just above 0.40 threshold).</span>
+  </div>
+</div>
+
+<!-- site38 -->
+<div class="site-card">
+  <div class="site-header">
+    <span class="site-name">site38</span>
+    <span class="alarm-badge alarm-yellow">🟡 YELLOW ALERT</span>
+    <span class="rf-prob">RF prob: <strong>0.373</strong></span>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="col-title">RF Classifier (tile-level)</div>
+      <div class="metric"><span class="metric-label">RF probability</span><span class="metric-value val-yellow">0.373</span></div>
+      <div class="metric"><span class="metric-label">Red encroachment area</span><span class="metric-value val-red">2.6 ha</span></div>
+      <div class="metric"><span class="metric-label">Yellow spectral area</span><span class="metric-value val-yellow">1.9 ha</span></div>
+      <div class="metric"><span class="metric-label">Alert tier</span><span class="metric-value val-yellow">Possible encroachment</span></div>
+    </div>
+    <div class="col">
+      <div class="col-title">Full Pipeline (pixel-level, Steps 01–07)</div>
+      <div class="metric"><span class="metric-label">Changed pixels (Step 05)</span><span class="metric-value val-blue">2.4%</span></div>
+      <div class="metric"><span class="metric-label">Agricultural cover (Step 06)</span><span class="metric-value val-green">84.7%</span></div>
+      <div class="metric"><span class="metric-label">Spectral degradation (Step 04)</span><span class="metric-value val-yellow">12.8%</span></div>
+      <div class="metric"><span class="metric-label">Built-up expansion (Step 07)</span><span class="metric-value val-yellow">2.53 ha · 2 polygons</span></div>
+    </div>
+  </div>
+  <div class="bar-wrap" style="padding: 0 24px 14px">
+    <div class="bar-row"><span class="bar-label">Changed %</span><div class="bar-track"><div class="bar-fill" style="width:24%;background:var(--accent)"></div></div><span class="bar-num">2.4%</span></div>
+    <div class="bar-row"><span class="bar-label">Agri %</span><div class="bar-track"><div class="bar-fill" style="width:85%;background:var(--green)"></div></div><span class="bar-num">85%</span></div>
+    <div class="bar-row"><span class="bar-label">Bldg ha</span><div class="bar-track"><div class="bar-fill" style="width:25%;background:var(--yellow)"></div></div><span class="bar-num">2.53</span></div>
+  </div>
+  <div class="agree-row">
+    <span class="agree-icon">✅</span>
+    <span class="agree-text"><strong>Agreement.</strong> Both methods give a cautious verdict. RF: Yellow (0.373). Pipeline: 2.53 ha, 2 polygons — small but real NDBI increase on agricultural land. The pipeline's spatial signal actually <em>upgrades</em> confidence here; the RF may be underselling this site.</span>
+  </div>
+</div>
+
+<!-- site158 -->
+<div class="site-card">
+  <div class="site-header">
+    <span class="site-name">site158</span>
+    <span class="alarm-badge alarm-yellow">🟡 YELLOW ALERT</span>
+    <span class="rf-prob">RF prob: <strong>0.319</strong></span>
+  </div>
+  <div class="cols">
+    <div class="col">
+      <div class="col-title">RF Classifier (tile-level)</div>
+      <div class="metric"><span class="metric-label">RF probability</span><span class="metric-value val-yellow">0.319</span></div>
+      <div class="metric"><span class="metric-label">Red encroachment area</span><span class="metric-value val-red">1.4 ha</span></div>
+      <div class="metric"><span class="metric-label">Yellow spectral area</span><span class="metric-value val-yellow">0.8 ha</span></div>
+      <div class="metric"><span class="metric-label">Alert tier</span><span class="metric-value val-yellow">Possible encroachment</span></div>
+    </div>
+    <div class="col">
+      <div class="col-title">Full Pipeline (pixel-level, Steps 01–07)</div>
+      <div class="metric"><span class="metric-label">Changed pixels (Step 05)</span><span class="metric-value val-blue">0.8%</span></div>
+      <div class="metric"><span class="metric-label">Agricultural cover (Step 06)</span><span class="metric-value val-green">49.1%</span></div>
+      <div class="metric"><span class="metric-label">Spectral degradation (Step 04)</span><span class="metric-value val-green">2.4%</span></div>
+      <div class="metric"><span class="metric-label">Built-up expansion (Step 07)</span><span class="metric-value val-yellow">0.40 ha · 1 polygon</span></div>
+    </div>
+  </div>
+  <div class="bar-wrap" style="padding: 0 24px 14px">
+    <div class="bar-row"><span class="bar-label">Changed %</span><div class="bar-track"><div class="bar-fill" style="width:8%;background:var(--accent)"></div></div><span class="bar-num">0.8%</span></div>
+    <div class="bar-row"><span class="bar-label">Agri %</span><div class="bar-track"><div class="bar-fill" style="width:49%;background:var(--green)"></div></div><span class="bar-num">49%</span></div>
+    <div class="bar-row"><span class="bar-label">Bldg ha</span><div class="bar-track"><div class="bar-fill" style="width:4%;background:var(--yellow)"></div></div><span class="bar-num">0.40</span></div>
+  </div>
+  <div class="agree-row">
+    <span class="agree-icon">✅</span>
+    <span class="agree-text"><strong>Agreement — low-signal site.</strong> Both methods agree this is a weak signal: RF 0.319 (near-threshold Yellow), pipeline finds only 0.40 ha (1 polygon), with the lowest agricultural cover (49%) and change rate (0.8%) in the set. Either a very early-stage encroachment or a borderline false positive.</span>
+  </div>
+</div>
+
+<!-- SUMMARY TABLE -->
+<div class="summary">
+  <h2>Summary</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Site</th>
+        <th>RF Prob</th>
+        <th>RF Alert</th>
+        <th>Pipe: Changed%</th>
+        <th>Pipe: Agri%</th>
+        <th>Pipe: Bldg ha</th>
+        <th>Pipe: Polygons</th>
+        <th>Agreement</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>site105</strong></td>
+        <td class="val-red">0.547</td>
+        <td><span class="alarm-badge alarm-red">Red</span></td>
+        <td>2.0%</td>
+        <td>76.7%</td>
+        <td>0.00</td>
+        <td>0</td>
+        <td><span class="tag tag-partial">Partial</span></td>
+      </tr>
+      <tr>
+        <td><strong>site81</strong></td>
+        <td class="val-red">0.463</td>
+        <td><span class="alarm-badge alarm-red">Red</span></td>
+        <td>3.0%</td>
+        <td>83.0%</td>
+        <td>1.69</td>
+        <td>1</td>
+        <td><span class="tag tag-agree">Agree</span></td>
+      </tr>
+      <tr>
+        <td><strong>site276</strong></td>
+        <td class="val-red">0.409</td>
+        <td><span class="alarm-badge alarm-red">Red</span></td>
+        <td>4.0%</td>
+        <td>93.2%</td>
+        <td>7.73</td>
+        <td>5</td>
+        <td><span class="tag tag-agree">Agree</span></td>
+      </tr>
+      <tr>
+        <td><strong>site38</strong></td>
+        <td class="val-yellow">0.373</td>
+        <td><span class="alarm-badge alarm-yellow">Yellow</span></td>
+        <td>2.4%</td>
+        <td>84.7%</td>
+        <td>2.53</td>
+        <td>2</td>
+        <td><span class="tag tag-agree">Agree</span></td>
+      </tr>
+      <tr>
+        <td><strong>site158</strong></td>
+        <td class="val-yellow">0.319</td>
+        <td><span class="alarm-badge alarm-yellow">Yellow</span></td>
+        <td>0.8%</td>
+        <td>49.1%</td>
+        <td>0.40</td>
+        <td>1</td>
+        <td><span class="tag tag-agree">Agree</span></td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="note">
+  <strong>Methods.</strong> RF Classifier uses 44 tabular spectral/temporal features extracted per tile and a calibrated Random Forest (val AUC 0.91) — it answers <em>"is this tile encroached?"</em>
+  Full Pipeline (Steps 01–07, fallback mode) runs spatial analysis on each pixel: Step 05 mean-abs-difference change detection, Step 06 NDVI &gt; 0.2 agriculture mask, Step 07 NDBI_delta &gt; 0.05 morphological building detection — it answers <em>"where on the tile did new built-up appear on former farmland?"</em>
+  <br><br>
+  <strong>Divergence (site105).</strong> The RF detects encroachment but Step 07 finds no building pixels. Likely cause: the encroachment is bare-soil conversion or early-stage land clearing without a detectable NDBI increase yet. The RF's broader 44-feature space captures this; NDBI-delta is sensitive only to confirmed built-up structures.
+  <br><br>
+  <strong>Fallback note.</strong> No GPU, ChangeFormer weights, YOLO weights, or SegFormer were used. All steps used rule-based fallbacks.
+</div>
+
+</body>
+</html>

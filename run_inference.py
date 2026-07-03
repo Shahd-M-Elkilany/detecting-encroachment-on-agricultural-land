@@ -9,9 +9,12 @@ import matplotlib; matplotlib.use("Agg")
 import matplotlib.pyplot as plt, matplotlib.patches as patches
 from matplotlib.gridspec import GridSpec
 
-BA_DIR     = Path("data/KEMET1_BeforeAfter/KEMET1_BeforeAfter_Tiles")
-MODEL_PATH = Path("models/ba_rf_model.pkl")
-OUT_DIR    = Path("outputs"); OUT_DIR.mkdir(exist_ok=True)
+BA_DIR           = Path("data/KEMET1_BeforeAfter/KEMET1_BeforeAfter_Tiles")
+MODEL_PATH       = Path("models/ba_rf_model.pkl")
+OUT_DIR          = Path("outputs"); OUT_DIR.mkdir(exist_ok=True)
+
+YELLOW_THRESHOLD = 0.30
+ALERT_THRESHOLD  = 0.40
 
 def extract_stats(arr):
     feats = []
@@ -134,8 +137,6 @@ def run(before_path, after_path, site_name):
     # ── Fusion: RF tile-level x0.65 + spectral composite x0.35 ─────────────────
     fusion_score = 0.65 * prob + 0.35 * spectral_score
 
-    YELLOW_THRESHOLD = 0.30   # raised from 0.23: yellow precision 32.6%->62.5%
-    ALERT_THRESHOLD  = 0.40   # high-confidence red alert threshold
     VERIFY_AREA_HA   = 80.0
     VERIFY_CONF_HA   = 40.0
     VERIFY_CONF_CEIL = 0.60
