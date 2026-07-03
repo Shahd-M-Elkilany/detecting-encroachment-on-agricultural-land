@@ -1,1 +1,14 @@
 *.html linguist-detectable=false
+
+# Normalise line endings: store as LF, check out as LF on all platforms
+* text=auto eol=lf
+
+# Binaries — never touch line endings
+*.pkl  binary
+*.pt   binary
+*.pptx binary
+*.docx binary
+*.pdf  binary
+*.png  binary
+*.jpg  binary
+*.tif  binary
