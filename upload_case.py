@@ -41,15 +41,24 @@ def pair_features(d1, d2):
                                 float(np.nanmean(d2[1]-d1[1]))]])
 
 def find_clusters(d1, d2, px_ha, min_ha=0.5):
+    """Return (areas_ha, boxes_px) sorted by area desc. boxes_px = (r0,c0,r1,c1)."""
     mask = ((d1[0]>0.25) & (d2[0]<0.25) & (d2[1]>d1[1]+0.08)).astype(np.uint8)
     labeled, n = ndimage.label(mask)
-    out = []
+    slices = ndimage.find_objects(labeled)
+    pairs = []
     for i in range(n):
         ha = round((labeled==(i+1)).sum() * px_ha, 2)
-        if ha >= min_ha: out.append(ha)
-    return sorted(out, reverse=True)
+        if ha >= min_ha:
+            rs, cs = slices[i]
+            pairs.append((ha, (rs.start, cs.start, rs.stop, cs.stop)))
+    pairs.sort(key=lambda x: -x[0])
+    if pairs:
+        areas, boxes = zip(*pairs)
+        return list(areas), list(boxes)
+    return [], []
 
-def save_rgb_png(data, path, title):
+def save_rgb_png(data, path, title, boxes=None):
+    import matplotlib.patches as patches
     imgs = []
     for ch in [data[1], data[0], data[2]]:
         lo = np.nanpercentile(ch, 2); hi = np.nanpercentile(ch, 98)
@@ -57,6 +66,11 @@ def save_rgb_png(data, path, title):
     rgb = (np.stack(imgs, axis=-1) * 255).astype(np.uint8)
     fig, ax = plt.subplots(figsize=(5,5), facecolor="#0d1117")
     ax.imshow(rgb, interpolation="nearest")
+    if boxes:
+        for (r0, c0, r1, c1) in boxes:
+            ax.add_patch(patches.Rectangle(
+                (c0, r0), c1-c0, r1-r0,
+                linewidth=1.5, edgecolor="#FF6B00", facecolor="none"))
     ax.set_title(title, color="white", fontsize=11, pad=4); ax.axis("off")
     plt.tight_layout(pad=0.3)
     plt.savefig(path, dpi=120, bbox_inches="tight", facecolor="#0d1117"); plt.close()
@@ -73,37 +87,41 @@ def upload_image(img_path: Path) -> str:
     if rel.startswith("http"): return rel
     return BASE_URL + ("" if rel.startswith("/") else "/") + rel
 
-def reverse_geocode(lat, lon):
+def reverse_geocode(lat, lon, retries=3):
     """Return (governorate, markaz). Prints raw address for debugging."""
-    try:
-        r = requests.get(
-            "https://nominatim.openstreetmap.org/reverse",
-            params={"format": "json", "lat": lat, "lon": lon,
-                    "zoom": 8, "accept-language": "en"},
-            headers={"User-Agent": "KEMET1-uploader/1.0"},
-            timeout=10,
-        )
-        data = r.json()
-        addr = data.get("address", {})
-        print(f"      [geocode raw] {addr}")
-
-        # Egypt: state = "Kafr el-Sheikh Governorate", state_district = markaz
-        gov  = (addr.get("state") or
-                addr.get("county") or
-                addr.get("region") or "")
-        mrkz = (addr.get("state_district") or
-                addr.get("county") or
-                addr.get("city") or
-                addr.get("town") or
-                addr.get("village") or "")
-
-        # Strip " Governorate" suffix if present
-        gov = gov.replace(" Governorate", "").strip()
-
-        return gov, mrkz
-    except Exception as e:
-        print(f"      [geocode error] {e}")
-        return "", ""
+    for attempt in range(1, retries + 1):
+        try:
+            r = requests.get(
+                "https://nominatim.openstreetmap.org/reverse",
+                params={"format": "json", "lat": lat, "lon": lon,
+                        "zoom": 10, "accept-language": "en"},
+                headers={"User-Agent": "KEMET1-uploader/1.0"},
+                timeout=10,
+            )
+            r.raise_for_status()
+            data = r.json()
+            # Nominatim returns {"error": "..."} as HTTP 200 on misses
+            if "error" in data:
+                print(f"      [geocode] Nominatim: {data['error']} (attempt {attempt})")
+                if attempt < retries:
+                    time.sleep(2); continue
+                break
+            addr = data.get("address", {})
+            print(f"      [geocode raw] {addr}")
+            # Egypt: governorate is in 'state' or 'province'; markaz in 'state_district'
+            gov  = (addr.get("state") or addr.get("province") or
+                    addr.get("county") or addr.get("region") or "")
+            mrkz = (addr.get("state_district") or addr.get("county") or
+                    addr.get("city") or addr.get("town") or
+                    addr.get("village") or "")
+            gov = gov.replace(" Governorate", "").replace(" Muhafazat", "").strip()
+            return gov, mrkz
+        except Exception as e:
+            print(f"      [geocode attempt {attempt}/{retries} failed] {e}")
+            if attempt < retries:
+                time.sleep(2)
+    print(f"      [geocode] all retries failed")
+    return "", ""
 
 def run(site: str, dry_run: bool = False):
     before_path = BA_DIR / f"{site}_before_2024.tif"
@@ -135,15 +153,15 @@ def run(site: str, dry_run: bool = False):
     spec = float(np.nanmean(np.maximum(d1[0]-d2[0], 0)))
     fusion = round(0.65*prob + 0.35*spec, 4)
     alarm = "High" if fusion >= ALERT_THRESHOLD else ("Medium" if fusion >= YELLOW_THRESHOLD else "Low")
-    clusters = find_clusters(d1, d2, px_ha)
+    clusters, boxes = find_clusters(d1, d2, px_ha)
     total_m2 = round(sum(clusters)*10_000, 2)
-    print(f"      prob={prob:.4f}  fusion={fusion}  risk={alarm}  area={total_m2:.0f} m2")
+    print(f"      prob={prob:.4f}  fusion={fusion}  risk={alarm}  area={total_m2:.0f} m2  clusters={len(clusters)}")
 
     print("[3/5] Generating before/after images...")
     before_png = OUT_DIR / f"{site}_before.png"
     after_png  = OUT_DIR / f"{site}_after.png"
     save_rgb_png(d1, before_png, f"BEFORE ({by})")
-    save_rgb_png(d2, after_png,  f"AFTER ({ay}) — {alarm}")
+    save_rgb_png(d2, after_png,  f"AFTER ({ay}) — {alarm}", boxes=boxes)
 
     print("[4/5] Reverse geocoding...")
     gov, mrkz = reverse_geocode(clat, clon)
