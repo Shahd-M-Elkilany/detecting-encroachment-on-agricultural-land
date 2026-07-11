@@ -87,7 +87,8 @@
     .drop-zone:hover, .drop-zone.over { border-color: var(--orange); background: rgba(255,107,0,.05); }
     .drop-zone.ready { border-color: var(--accent); background: rgba(35,134,54,.05); }
     .drop-zone input[type="file"] {
-      position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
+      position: absolute; inset: 0; opacity: 0; cursor: pointer;
+      width: 100%; height: 100%; z-index: 10;
     }
     .drop-icon { font-size: 2rem; }
     .drop-label { font-weight: 600; font-size: .95rem; }
@@ -95,6 +96,17 @@
     .file-name {
       font-size: .8rem; color: var(--accent); margin-top: .3rem;
       word-break: break-all;
+    }
+    .browse-btn {
+      margin-top: .5rem;
+      padding: .3rem .9rem;
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--muted);
+      font-size: .8rem;
+      cursor: pointer;
+      pointer-events: none; /* click handled by the file input above */
     }
 
     /* ── Button ── */
@@ -278,6 +290,7 @@
     <span class="drop-label">Before Image</span>
     <span class="drop-sub">6-band Sentinel-2 TIF (2024)</span>
     <span class="file-name" id="name-before"></span>
+    <button class="browse-btn">Browse file…</button>
   </div>
   <div class="drop-zone" id="drop-after">
     <input type="file" id="file-after" accept=".tif,.tiff" />
@@ -285,6 +298,7 @@
     <span class="drop-label">After Image</span>
     <span class="drop-sub">6-band Sentinel-2 TIF (2025)</span>
     <span class="file-name" id="name-after"></span>
+    <button class="browse-btn">Browse file…</button>
   </div>
 </div>
 
@@ -404,15 +418,4 @@
 
   btn.addEventListener('click', async () => {
     btn.disabled = true;
-    status.innerHTML = '<span class="spinner"></span> Running RF inference…';
-    document.getElementById('results').style.display = 'none';
-
-    const form = new FormData();
-    form.append('before', fileBefore.files[0]);
-    form.append('after',  fileAfter.files[0]);
-
-    try {
-      const res = await fetch(apiBase() + '/predict', { method: 'POST', body: form });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-   
+  
