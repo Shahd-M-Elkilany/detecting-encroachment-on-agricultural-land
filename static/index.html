@@ -89,6 +89,7 @@
     .drop-sub   { font-size: .8rem; color: var(--muted); }
     .file-name  { font-size: .8rem; color: var(--accent); margin-top: .2rem; word-break: break-all; }
     .browse-btn {
+      display: inline-block;
       margin-top: .5rem;
       padding: .35rem 1rem;
       background: var(--surface);
@@ -99,6 +100,13 @@
       cursor: pointer;
     }
     .browse-btn:hover { border-color: var(--orange); }
+    .browse-btn input[type="file"] {
+      position: absolute;
+      opacity: 0;
+      width: 0;
+      height: 0;
+      pointer-events: none;
+    }
 
     /* ── Button ── */
     .btn {
@@ -273,24 +281,26 @@
   <span class="api-status" id="api-status"></span>
 </div>
 
-<!-- Hidden file inputs — kept outside drop zones to avoid all click conflicts -->
-<input type="file" id="file-before" style="display:none" />
-<input type="file" id="file-after"  style="display:none" />
-
 <!-- Upload -->
 <div class="upload-grid">
   <div class="drop-zone" id="drop-before">
     <span class="drop-icon">🛰️</span>
     <span class="drop-label">Before Image</span>
     <span class="drop-sub">6-band Sentinel-2 TIF (2024)</span>
-    <button type="button" class="browse-btn" id="btn-before">Browse file…</button>
+    <label class="browse-btn">
+      Browse file…
+      <input type="file" id="file-before" />
+    </label>
     <span class="file-name" id="name-before"></span>
   </div>
   <div class="drop-zone" id="drop-after">
     <span class="drop-icon">📡</span>
     <span class="drop-label">After Image</span>
     <span class="drop-sub">6-band Sentinel-2 TIF (2025)</span>
-    <button type="button" class="browse-btn" id="btn-after">Browse file…</button>
+    <label class="browse-btn">
+      Browse file…
+      <input type="file" id="file-after" />
+    </label>
     <span class="file-name" id="name-after"></span>
   </div>
 </div>
@@ -374,10 +384,6 @@
   apiInput.addEventListener('change', pingServer);
   pingServer();
 
-  // Wire Browse buttons to file inputs
-  document.getElementById('btn-before').addEventListener('click', () => fileBefore.click());
-  document.getElementById('btn-after').addEventListener('click',  () => fileAfter.click());
-
   function markReady(dropId, nameId, file) {
     document.getElementById(nameId).textContent = file.name;
     document.getElementById(dropId).classList.add('ready');
@@ -410,4 +416,9 @@
   const RISK_CONFIG = {
     High:   { icon: '🔴', sub: 'High probability of agricultural encroachment detected.' },
     Medium: { icon: '🟡', sub: 'Moderate change signal — manual review recommended.'    },
-    Low:    
+    Low:    { icon: '🟢', sub: 'No significant encroachment detected in this tile.'     },
+  };
+
+  btn.addEventListener('click', async () => {
+    btn.disabled = true;
+    status.innerHTML = '<span class="spinner"><
