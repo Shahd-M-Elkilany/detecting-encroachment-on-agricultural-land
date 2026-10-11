@@ -1,0 +1,81 @@
+{
+  "protocol": "stratified 70/15/15, production hyper-parameters, one fit per seed",
+  "n_seeds": 30,
+  "hyper_parameters": {
+    "n_estimators": 400,
+    "max_depth": 8,
+    "min_samples_leaf": 3,
+    "class_weight": "balanced"
+  },
+  "val_auc": {
+    "mean": 0.7755,
+    "std": 0.0801,
+    "min": 0.6086,
+    "max": 0.9652,
+    "p05": 0.651,
+    "p95": 0.9021
+  },
+  "test_auc": {
+    "mean": 0.7988,
+    "std": 0.0678,
+    "min": 0.6768,
+    "max": 0.8965,
+    "p05": 0.683,
+    "p95": 0.8899
+  },
+  "shipped_model_seed42_test": {
+    "n": 45,
+    "positives": 11,
+    "rf_auc": 0.8717,
+    "rf_probability": [
+      {
+        "threshold": 0.23,
+        "tp": 9,
+        "fp": 5,
+        "fn": 2,
+        "tn": 29,
+        "precision": 0.6429,
+        "recall": 0.8182
+      },
+      {
+        "threshold": 0.4,
+        "tp": 6,
+        "fp": 1,
+        "fn": 5,
+        "tn": 33,
+        "precision": 0.8571,
+        "recall": 0.5455
+      }
+    ],
+    "fusion_auc": 0.861,
+    "fusion_score": [
+      {
+        "threshold": 0.23,
+        "tp": 7,
+        "fp": 2,
+        "fn": 4,
+        "tn": 32,
+        "precision": 0.7778,
+        "recall": 0.6364
+      },
+      {
+        "threshold": 0.3,
+        "tp": 6,
+        "fp": 1,
+        "fn": 5,
+        "tn": 33,
+        "precision": 0.8571,
+        "recall": 0.5455
+      },
+      {
+        "threshold": 0.4,
+        "tp": 3,
+        "fp": 0,
+        "fn": 8,
+        "tn": 34,
+        "precision": 1.0,
+        "recall": 0.2727
+      }
+    ]
+  }
+}

@@ -214,4 +214,32 @@ def main():
     sites = sorted(sites)
 
     print(f"{'[DRY RUN] ' if args.dry_run else ''}Processing {len(sites)} sites...\n")
-    bundle = pickle.load(
+    bundle = pickle.load(open(MODEL_PATH, "rb"))
+
+    results, failed = [], []
+    for i, site in enumerate(sites, 1):
+        print(f"[{i:02d}/{len(sites)}] {site}", end="  ", flush=True)
+        try:
+            res = process_site(site, bundle, args.dry_run)
+            results.append(res)
+            gov = res.get("governorate") or res.get("payload", {}).get("governorate", "")
+            print(f"✓  risk={res.get('risk_level') or res.get('payload',{}).get('risk_level','')}  gov={gov!r}")
+        except Exception as e:
+            print(f"✗  ERROR: {e}")
+            failed.append({"site": site, "error": str(e)})
+
+        # Nominatim requires >= 1 req/sec — wait between sites
+        if i < len(sites):
+            time.sleep(GEOCODE_DELAY)
+
+    log = OUT_DIR / "batch_upload_results.json"
+    log.write_text(json.dumps({"submitted": len(results), "failed": len(failed),
+                                "results": results, "errors": failed}, indent=2))
+    print(f"\n{'='*50}")
+    print(f"Done: {len(results)} submitted, {len(failed)} failed")
+    if failed:
+        print(f"Failed sites: {[f['site'] for f in failed]}")
+    print(f"Log saved: {log}")
+
+if __name__ == "__main__":
+    main()
