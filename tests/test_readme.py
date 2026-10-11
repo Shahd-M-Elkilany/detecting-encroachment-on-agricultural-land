@@ -16,9 +16,9 @@ def row(label):
 
 def test_headline_aucs():
     clean = load("data/ba_clean_results.json")
-    assert f"| {clean['val_auc']:.3f} |" in row("Validation (45 sites)")
-    assert f"| {clean['test_auc']:.3f} |" in row("Held-out test")
-    assert f"{clean['ci_lo']:.2f} to {clean['ci_hi']:.2f}" in row("Validation (45 sites)")
+    assert f"| {clean['val_auc']:.3f} |" in row("Validation, seed 42")
+    assert f"| {clean['test_auc']:.3f} |" in row("Held-out test, seed 42")
+    assert f"{clean['ci_lo']:.2f} to {clean['ci_hi']:.2f}" in row("Validation, seed 42")
 
 
 def test_geographic_holdout():
@@ -34,17 +34,20 @@ def test_repeated_splits_row():
     assert f"{spread['min']:.2f} to {spread['max']:.2f}" in line
 
 
-def test_threshold_table():
-    shipped = load("results/repeated_splits.json")["shipped_model_seed42_test"]
+def test_alarm_table_and_thresholds():
+    import alarm
+
+    test = load("results/repeated_splits.json")["shipped_model_seed42"]["test"]
     cases = {
-        "RF probability ≥ 0.23": shipped["rf_probability"][0],
-        "RF probability ≥ 0.40": shipped["rf_probability"][1],
-        "fusion ≥ 0.23": shipped["fusion_score"][0],
-        "fusion ≥ 0.40": shipped["fusion_score"][2],
+        f"fusion ≥ {alarm.YELLOW_THRESHOLD:.2f}": test["alarm"]["medium"],
+        f"High (fusion ≥ {alarm.ALERT_THRESHOLD:.2f})": test["alarm"]["high"],
+        "fusion ≥ 0.40": test["previous_high_threshold_0.40"],
     }
     for label, r in cases.items():
         expected = f"| {r['precision']:.2f} | {r['recall']:.2f} | {r['tp']} / {r['fp']} / {r['fn']} |"
         assert expected in row(label), label
+    assert test["alarm"]["medium"]["threshold"] == alarm.YELLOW_THRESHOLD
+    assert test["alarm"]["high"]["threshold"] == alarm.ALERT_THRESHOLD
 
 
 def test_label_counts():

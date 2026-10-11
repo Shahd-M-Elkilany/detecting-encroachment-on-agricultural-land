@@ -19,8 +19,7 @@ import uvicorn
 ROOT             = Path(__file__).parent
 MODEL_PATH       = ROOT / "models" / "ba_rf_model.pkl"
 STATIC_DIR       = ROOT / "static"
-ALERT_THRESHOLD  = 0.40
-YELLOW_THRESHOLD = 0.23
+from alarm import ALERT_THRESHOLD, YELLOW_THRESHOLD, fusion_score, risk_level  # single source
 
 print("Loading RF model...", end=" ", flush=True)
 _bundle = pickle.load(open(MODEL_PATH, "rb"))
@@ -112,9 +111,8 @@ async def predict(before: UploadFile=File(...), after: UploadFile=File(...)):
     feats=_pair_features(d1,d2).reshape(1,-1)
     if _scaler: feats=_scaler.transform(feats)
     prob=float(_clf.predict_proba(feats)[0,1])
-    spec=float(np.nanmean(np.maximum(d1[0]-d2[0],0)))
-    fusion=round(0.65*prob+0.35*spec,4)
-    alarm=("High" if fusion>=ALERT_THRESHOLD else "Medium" if fusion>=YELLOW_THRESHOLD else "Low")
+    fusion=round(fusion_score(prob,d1,d2),4)
+    alarm=risk_level(fusion)
     clusters,boxes=_find_clusters(d1,d2,px_ha)
     total_m2=round(sum(clusters)*10_000,2)
     clat=round((wgs[1]+wgs[3])/2,6); clon=round((wgs[0]+wgs[2])/2,6)

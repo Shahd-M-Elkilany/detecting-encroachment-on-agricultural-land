@@ -14,8 +14,8 @@ BA_DIR           = _ROOT / "data/KEMET1_BeforeAfter/KEMET1_BeforeAfter_Tiles"
 MODEL_PATH       = _ROOT / "models/ba_rf_model.pkl"
 OUT_DIR          = _ROOT / "outputs"; OUT_DIR.mkdir(exist_ok=True)
 
-YELLOW_THRESHOLD = 0.30
-ALERT_THRESHOLD  = 0.40
+from alarm import ALERT_THRESHOLD, YELLOW_THRESHOLD  # single source, shared with app.py
+import alarm as _alarm
 
 def extract_stats(arr):
     feats = []
@@ -126,18 +126,12 @@ def run(before_path, after_path, site_name):
     clf  = bundle.get("calibrated_model") or bundle["model"]
     prob = float(clf.predict_proba(feat)[0,1])
 
-    # ── Signal 2: spectral composite score (tile-level) ─────────────────────────
-    # Uses feat[42]=mean_dNDVI and feat[43]=mean_dNDBI (tile averages).
-    # Positive when NDVI drops (vegetation loss) AND/OR NDBI rises (built-up gain).
-    # Per-cluster pixel NDBI_after was tested as an alternative but produced more
-    # FPs (bare soil/urban-fringe pixels at 10m overlap with true construction);
-    # the RF tile-level score outperforms it as a discriminator.
-    ndvi_d_mean = float(feat[0, 42])
-    ndbi_d_mean = float(feat[0, 43])
-    spectral_score = float(np.clip((-ndvi_d_mean + ndbi_d_mean) * 1.5, 0.0, 1.0))
+    # ── Signal 2: spectral score (tile-level mean NDVI loss) ────────────────────
+    # Same definition as the web app and the upload scripts (alarm.py).
+    spectral_score = _alarm.spectral_score(d1, d2)
 
     # ── Fusion: RF tile-level x0.65 + spectral composite x0.35 ─────────────────
-    fusion_score = 0.65 * prob + 0.35 * spectral_score
+    fusion_score = _alarm.fusion_score(prob, d1, d2)
 
     VERIFY_AREA_HA   = 80.0
     VERIFY_CONF_HA   = 40.0

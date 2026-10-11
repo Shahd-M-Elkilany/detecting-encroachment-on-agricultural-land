@@ -3,8 +3,8 @@
 The reported validation / test AUC come from one stratified 70/15/15 split
 (seed 42) with 45 test sites. This script repeats the same protocol, with the
 production model's hyper-parameters, over many seeds and reports the spread.
-It also scores the deployed alarm (0.65 x RF probability + 0.35 x mean NDVI
-loss, as in app.py) on the seed-42 test split.
+It also scores the deployed alarm (alarm.py) on the seed-42 validation and
+test splits, at the thresholds the scripts use.
 
 Run from the repository root (needs the tiles, see README):
     python repeated_splits.py
@@ -22,6 +22,8 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.impute import SimpleImputer
 from sklearn.metrics import confusion_matrix, roc_auc_score
 from sklearn.model_selection import train_test_split
+
+import alarm
 
 ROOT = Path(__file__).parent
 BA_DIR = ROOT / "data/KEMET1_BeforeAfter/KEMET1_BeforeAfter_Tiles"
@@ -44,7 +46,7 @@ def load_features(records):
         with rasterio.open(BA_DIR / (r["site"] + "_after_2025.tif")) as s:
             d2 = s.read().astype(np.float32)
         X.append(pair_features(d1, d2))
-        spec.append(float(np.nanmean(np.maximum(d1[0] - d2[0], 0))))
+        spec.append(alarm.spectral_score(d1, d2))
         y.append(1 if r["label"] == "pos" else 0)
     return np.array(X), np.array(spec), np.array(y)
 
@@ -86,23 +88,27 @@ def summarise(X, spec, y, bundle, n_seeds=N_SEEDS):
 
     # The shipped model on the split it was trained with (seed 42).
     tr, val, test = split_70_15_15(len(y), y, 42)
-    imp = SimpleImputer(strategy="median").fit(X[tr])
     clf = bundle.get("calibrated_model") or bundle["model"]
-    prob = clf.predict_proba(imp.transform(X[test]))[:, 1]
-    fusion = 0.65 * prob + 0.35 * spec[test]
+    prob = clf.predict_proba(X)[:, 1]
+    fusion = alarm.RF_WEIGHT * prob + alarm.SPECTRAL_WEIGHT * spec
+    tiers = {"medium": alarm.YELLOW_THRESHOLD, "high": alarm.ALERT_THRESHOLD}
+
+    def block(idx):
+        return {
+            "n": int(len(idx)), "positives": int(y[idx].sum()),
+            "rf_auc": round(float(roc_auc_score(y[idx], prob[idx])), 4),
+            "fusion_auc": round(float(roc_auc_score(y[idx], fusion[idx])), 4),
+            "alarm": {name: counts(y[idx], fusion[idx], t) for name, t in tiers.items()},
+            "previous_high_threshold_0.40": counts(y[idx], fusion[idx], 0.40),
+        }
+
     return {
         "protocol": "stratified 70/15/15, production hyper-parameters, one fit per seed",
         "n_seeds": n_seeds,
         "hyper_parameters": {k: (v if not isinstance(v, np.generic) else v.item()) for k, v in params.items()},
         "val_auc": spread(val_auc),
         "test_auc": spread(test_auc),
-        "shipped_model_seed42_test": {
-            "n": int(len(test)), "positives": int(y[test].sum()),
-            "rf_auc": round(float(roc_auc_score(y[test], prob)), 4),
-            "rf_probability": [counts(y[test], prob, t) for t in (0.23, 0.40)],
-            "fusion_auc": round(float(roc_auc_score(y[test], fusion)), 4),
-            "fusion_score": [counts(y[test], fusion, t) for t in (0.23, 0.30, 0.40)],
-        },
+        "shipped_model_seed42": {"validation": block(val), "test": block(test)},
     }
 
 

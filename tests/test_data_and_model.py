@@ -40,12 +40,16 @@ def test_stored_evaluations_agree_with_each_other():
 
 def test_repeated_splits_contain_the_reported_split():
     repeated = load("results/repeated_splits.json")
-    shipped = repeated["shipped_model_seed42_test"]
-    assert shipped["rf_auc"] == pytest.approx(load("data/ba_clean_results.json")["test_auc"], abs=1e-4)
+    clean = load("data/ba_clean_results.json")
+    shipped = repeated["shipped_model_seed42"]
+    assert shipped["test"]["rf_auc"] == pytest.approx(clean["test_auc"], abs=1e-4)
+    assert shipped["validation"]["rf_auc"] == pytest.approx(clean["val_auc"], abs=1e-4)
     assert repeated["test_auc"]["min"] <= repeated["test_auc"]["mean"] <= repeated["test_auc"]["max"]
-    for row in shipped["rf_probability"] + shipped["fusion_score"]:
-        assert row["tp"] + row["fn"] == shipped["positives"]
-        assert row["tp"] + row["fp"] + row["fn"] + row["tn"] == shipped["n"]
+    for block in shipped.values():
+        rows = list(block["alarm"].values()) + [block["previous_high_threshold_0.40"]]
+        for row in rows:
+            assert row["tp"] + row["fn"] == block["positives"]
+            assert row["tp"] + row["fp"] + row["fn"] + row["tn"] == block["n"]
 
 
 def test_model_bundle_loads_and_scores(tile_pair):

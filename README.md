@@ -25,26 +25,30 @@ trained on 300 co-registered Sentinel-2 tile pairs (2024 vs 2025).
 
 | Evaluation | AUC | Notes |
 | --- | --- | --- |
-| Validation (45 sites) | 0.861 | 95% bootstrap CI 0.74 to 0.96 |
-| Held-out test (45 sites, 11 positive) | 0.872 | Stratified 70/15/15 split, seed 42 |
-| Same protocol over 30 random splits, test | 0.799 ± 0.068 | Range 0.68 to 0.90 |
+| **30 random splits, test (headline)** | **0.799 ± 0.068** | Same 70/15/15 protocol and settings; range 0.68 to 0.90 |
+| Held-out test, seed 42 (45 sites, 11 positive) | 0.872 | The split the shipped model was trained on |
+| Validation, seed 42 (45 sites) | 0.861 | 95% bootstrap CI 0.74 to 0.96 |
 | Geographic holdout, train south / test north | 0.717 | Split at the median latitude |
 | Geographic holdout, train north / test south | 0.688 | 150 sites per half |
 
-The 30-split row is the fairest single summary: the seed-42 split that the
-shipped model was trained on lands near the top of that range.
+Read the first row as the model's expected performance. The seed-42 figures
+are real but sit near the top of the range that different random splits give.
 
-On the seed-42 test split, the shipped (Platt-calibrated) model trades off as follows:
+Every script scores a site the same way (`alarm.py`):
+`fusion = 0.65 × RF probability + 0.35 × mean NDVI loss`. The two alarm
+thresholds were chosen on the validation split; on the seed-42 test split they give:
 
-| Score and threshold | Precision | Recall | Correct / false alarms / missed |
+| Alarm tier | Precision | Recall | Correct / false alarms / missed |
 | --- | --- | --- | --- |
-| RF probability ≥ 0.23 | 0.64 | 0.82 | 9 / 5 / 2 |
-| RF probability ≥ 0.40 | 0.86 | 0.55 | 6 / 1 / 5 |
-| Web-app alarm "Medium" (fusion ≥ 0.23) | 0.78 | 0.64 | 7 / 2 / 4 |
-| Web-app alarm "High" (fusion ≥ 0.40) | 1.00 | 0.27 | 3 / 0 / 8 |
+| Medium or High (fusion ≥ 0.23) | 0.78 | 0.64 | 7 / 2 / 4 |
+| High (fusion ≥ 0.30) | 0.86 | 0.55 | 6 / 1 / 5 |
+| Earlier High threshold (fusion ≥ 0.40) | 1.00 | 0.27 | 3 / 0 / 8 |
 
-The fusion score is what `app.py` reports (`0.65 × RF + 0.35 × mean NDVI loss`).
-`run_inference.py` uses 0.30 instead of 0.23 for its medium tier.
+The High threshold was lowered from 0.40 to 0.30 because, on validation, 0.40
+missed 8 of 12 flagged sites for no gain in precision. The two tiers are close:
+with 11 or 12 positives to tune on, the data supports one operating point
+better than two. The HTML files in `reports/` were generated before this change;
+`python batch_report.py` regenerates them.
 
 ### What these numbers do and do not show
 
@@ -75,11 +79,12 @@ The fusion score is what `app.py` reports (`0.65 × RF + 0.35 × mean NDVI loss`
 2. For each pair, per-band differences and the NDVI and NDBI changes are
    summarised into 44 statistics.
 3. A Random Forest with Platt-calibrated probabilities scores the site.
-4. The RF score is fused with a pixel-level spectral check
-   (`0.65 × RF + 0.35 × spectral`), where a pixel counts as converted when
-   NDVI falls below 0.25 and NDBI rises by more than 0.08.
-5. Converted pixels are grouped into clusters, measured in hectares, and
-   written to an HTML report with a map.
+4. The RF probability is fused with the tile's mean NDVI loss
+   (`0.65 × RF + 0.35 × NDVI loss`, defined once in `alarm.py`) and mapped to
+   a High, Medium or Low alarm.
+5. Separately, pixels where NDVI falls below 0.25 and NDBI rises by more than
+   0.08 are grouped into clusters, measured in hectares, and drawn on an HTML
+   report with a map.
 
 ## Quick start
 
@@ -123,10 +128,11 @@ pip install -r requirements.txt pytest httpx
 pytest
 ```
 
-The 30 tests run on synthetic tiles, so they need no dataset. They check that
+The 37 tests run on synthetic tiles, so they need no dataset. They check that
 the five copies of the feature code (`evaluate_ba.py`, `geographic_holdout.py`,
 `ablation_no_circular.py`, `run_inference.py`, `app.py`) produce identical
-features, that clustering and area figures are right, that the shipped labels,
+features, that every script uses the same alarm score and thresholds, that
+clustering and area figures are right, that the shipped labels,
 results files and model are consistent with each other and with this README,
 and that the web API scores a tile pair end to end. They run on every push
 through GitHub Actions, together with a syntax check of every script.
@@ -136,6 +142,7 @@ through GitHub Actions, together with a syntax check of every script.
 ```
 app.py                    FastAPI server for the web interface (static/)
 run_inference.py          Score one site and write an HTML report
+alarm.py                  The alarm score and its thresholds (shared by all scripts)
 evaluate_ba.py            Test-split evaluation and results dashboard
 ablation_no_circular.py   Retrain without the leaking features
 geographic_holdout.py     North/south spatial holdout

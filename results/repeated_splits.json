@@ -23,51 +23,68 @@
     "p05": 0.683,
     "p95": 0.8899
   },
-  "shipped_model_seed42_test": {
-    "n": 45,
-    "positives": 11,
-    "rf_auc": 0.8717,
-    "rf_probability": [
-      {
-        "threshold": 0.23,
-        "tp": 9,
-        "fp": 5,
-        "fn": 2,
-        "tn": 29,
-        "precision": 0.6429,
-        "recall": 0.8182
+  "shipped_model_seed42": {
+    "validation": {
+      "n": 45,
+      "positives": 12,
+      "rf_auc": 0.8611,
+      "fusion_auc": 0.8611,
+      "alarm": {
+        "medium": {
+          "threshold": 0.23,
+          "tp": 8,
+          "fp": 5,
+          "fn": 4,
+          "tn": 28,
+          "precision": 0.6154,
+          "recall": 0.6667
+        },
+        "high": {
+          "threshold": 0.3,
+          "tp": 7,
+          "fp": 4,
+          "fn": 5,
+          "tn": 29,
+          "precision": 0.6364,
+          "recall": 0.5833
+        }
       },
-      {
+      "previous_high_threshold_0.40": {
         "threshold": 0.4,
-        "tp": 6,
-        "fp": 1,
-        "fn": 5,
-        "tn": 33,
-        "precision": 0.8571,
-        "recall": 0.5455
-      }
-    ],
-    "fusion_auc": 0.861,
-    "fusion_score": [
-      {
-        "threshold": 0.23,
-        "tp": 7,
+        "tp": 4,
         "fp": 2,
-        "fn": 4,
-        "tn": 32,
-        "precision": 0.7778,
-        "recall": 0.6364
+        "fn": 8,
+        "tn": 31,
+        "precision": 0.6667,
+        "recall": 0.3333
+      }
+    },
+    "test": {
+      "n": 45,
+      "positives": 11,
+      "rf_auc": 0.8717,
+      "fusion_auc": 0.861,
+      "alarm": {
+        "medium": {
+          "threshold": 0.23,
+          "tp": 7,
+          "fp": 2,
+          "fn": 4,
+          "tn": 32,
+          "precision": 0.7778,
+          "recall": 0.6364
+        },
+        "high": {
+          "threshold": 0.3,
+          "tp": 6,
+          "fp": 1,
+          "fn": 5,
+          "tn": 33,
+          "precision": 0.8571,
+          "recall": 0.5455
+        }
       },
-      {
-        "threshold": 0.3,
-        "tp": 6,
-        "fp": 1,
-        "fn": 5,
-        "tn": 33,
-        "precision": 0.8571,
-        "recall": 0.5455
-      },
-      {
+      "previous_high_threshold_0.40": {
         "threshold": 0.4,
         "tp": 3,
         "fp": 0,
@@ -76,6 +93,6 @@
         "precision": 1.0,
         "recall": 0.2727
       }
-    ]
+    }
   }
 }
