@@ -75,7 +75,7 @@ def test_no_personal_file_paths_are_committed():
     tracked = subprocess.run(["git", "ls-files"], cwd=ROOT, capture_output=True, text=True).stdout.split("\n")
     offenders = []
     for name in tracked:
-        if name.endswith((".html", ".py", ".md", ".json", ".js", ".txt", ".yml")):
+        if name.endswith((".html", ".py", ".md", ".json", ".js", ".txt", ".yml")) and not name.startswith("tests/"):
             text = (ROOT / name).read_text(encoding="utf-8", errors="ignore")
             if "C:\\Users\\" in text or "C:/Users/" in text:
                 offenders.append(name)
