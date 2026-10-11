@@ -66,3 +66,17 @@ def test_model_bundle_loads_and_scores(tile_pair):
         baseline = bundle["calibrated_model"].predict_proba(unchanged)[0, 1]
     assert 0.0 <= baseline < probability <= 1.0, "a 9 ha conversion must score above no change at all"
     assert np.isfinite(probability)
+
+
+def test_no_personal_file_paths_are_committed():
+    """Generated reports once embedded an absolute path from the author's computer."""
+    import subprocess
+
+    tracked = subprocess.run(["git", "ls-files"], cwd=ROOT, capture_output=True, text=True).stdout.split("\n")
+    offenders = []
+    for name in tracked:
+        if name.endswith((".html", ".py", ".md", ".json", ".js", ".txt", ".yml")):
+            text = (ROOT / name).read_text(encoding="utf-8", errors="ignore")
+            if "C:\\Users\\" in text or "C:/Users/" in text:
+                offenders.append(name)
+    assert offenders == []

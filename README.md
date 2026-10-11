@@ -128,7 +128,7 @@ pip install -r requirements.txt pytest httpx
 pytest
 ```
 
-The 37 tests run on synthetic tiles, so they need no dataset. They check that
+The 38 tests run on synthetic tiles, so they need no dataset. They check that
 the five copies of the feature code (`evaluate_ba.py`, `geographic_holdout.py`,
 `ablation_no_circular.py`, `run_inference.py`, `app.py`) produce identical
 features, that every script uses the same alarm score and thresholds, that
