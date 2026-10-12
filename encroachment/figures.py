@@ -186,3 +186,43 @@ def make_all(out: Path) -> list[Path]:
     table = data.load_features()
     report = json.loads((data.RESULTS / "evaluation.json").read_text())
     return [fig_comparison(report, out), fig_roc_pr(table, out), fig_thresholds(table, out), fig_site_map(table, out)]
+
+
+def fig_examples(
+    tiles_dir: Path, out: Path, sites=(("site264", "correct alarm"), ("site150", "false alarm"), ("site299", "missed"))
+) -> Path:
+    """Before / after / NDVI change for chosen test sites. Needs the tiles (see docs/DATA.md)."""
+    from .analysis import Scorer
+    from .imagery import draw_boxes, false_colour
+
+    plt = _style()
+    scorer = Scorer()
+    fig, axes = plt.subplots(len(sites), 3, figsize=(11, 3.75 * len(sites)))
+    for row, (site, verdict) in zip(axes, sites, strict=True):
+        result = scorer.score_files(*data.tile_paths(site, tiles_dir), site)
+        before, after = false_colour(result.pair.before, result.pair.after)
+        row[0].imshow(before, interpolation="nearest")
+        row[1].imshow(after, interpolation="nearest")
+        draw_boxes(row[1], result.clusters, linewidth=1.8)
+        row[2].imshow(
+            result.pair.after[0] - result.pair.before[0], cmap="RdYlGn", vmin=-0.5, vmax=0.5, interpolation="nearest"
+        )
+        for ax in row:
+            ax.set_xticks([])
+            ax.set_yticks([])
+            ax.grid(False)
+        label = int(data.load_features().set_index("site").loc[site, "label"])
+        row[0].set_title(f"{site} · 2024", fontsize=11)
+        row[1].set_title(f"2025 · {result.risk} ({result.probability:.2f}) · {verdict}", fontsize=11)
+        row[2].set_title(f"NDVI change · label {'positive' if label else 'negative'}", fontsize=11)
+    fig.text(
+        0.5,
+        0.005,
+        "False colour R = NDBI, G = NDVI, B = MNDWI at 10 m. Boxes: change clusters ≥ 0.5 ha, "
+        "red = strongest. NDVI change: red = vegetation lost.",
+        ha="center",
+        fontsize=9,
+        color=MUTED,
+    )
+    fig.tight_layout(rect=(0, 0.02, 1, 1))
+    return _save(fig, out, "examples.png")

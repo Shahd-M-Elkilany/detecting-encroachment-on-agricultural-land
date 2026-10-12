@@ -55,8 +55,12 @@ def cmd_extract(args) -> None:
         rows.append(row)
         if i % 25 == 0:
             print(f"  {i}/{len(labels)}")
-    pd.DataFrame(rows).to_csv(args.out, index=False, float_format="%.6g")
-    print(f"wrote {len(rows)} sites to {args.out}")
+    table = pd.DataFrame(rows)
+    table.to_csv(args.out, index=False, float_format="%.6g")
+    from .features import label_rule
+
+    agree = sum(label_rule(r["pct_converted"], r["max_cluster_ha"]) == bool(r["label"]) for r in rows)
+    print(f"wrote {len(rows)} sites to {args.out}; the labelling rule reproduces {agree} of {len(rows)} labels")
 
 
 def cmd_train(args) -> None:
@@ -103,6 +107,10 @@ def cmd_figures(args) -> None:
 
     for path in make_all(args.out):
         print("wrote", path)
+    if args.tiles.is_dir():
+        from .figures import fig_examples
+
+        print("wrote", fig_examples(args.tiles, args.out))
 
 
 def _scorer():
@@ -185,6 +193,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("figures", help="draw the figures used in the README")
     p.add_argument("--out", type=Path, default=data.ROOT / "docs" / "figures")
+    p.add_argument("--tiles", type=Path, default=data.TILES_DIR, help="also draw example sites if present")
     p.set_defaults(func=cmd_figures)
 
     for name, func, helptext in (

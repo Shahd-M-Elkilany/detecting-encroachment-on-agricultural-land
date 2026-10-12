@@ -5,19 +5,34 @@ on: [push, pull_request]
 jobs:
   test:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.12"]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: ${{ matrix.python-version }}
           cache: pip
       - name: Install
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          # the shipped model was pickled with scikit-learn 1.7.2
-          pip install "scikit-learn==1.7.2" pytest httpx ruff
-      - name: Syntax errors and undefined names
-        run: ruff check . --select E9,F63,F7,F82 --exclude docs,reports,results
-      - name: Tests (synthetic tiles, no dataset needed)
+          pip install -e ".[dev]"
+      - name: Lint
+        run: |
+          ruff check .
+          ruff format --check .
+      - name: Tests
         run: pytest
+      - name: Evaluation reproduces from the committed feature table
+        run: |
+          kemet1 evaluate --out /tmp/evaluation.json
+          python - <<'PY'
+          import json
+          new = json.load(open("/tmp/evaluation.json"))
+          old = json.load(open("results/evaluation.json"))
+          assert new["test"]["auc"] == old["test"]["auc"], (new["test"]["auc"], old["test"]["auc"])
+          assert new["development_out_of_fold"]["thresholds"] == old["development_out_of_fold"]["thresholds"]
+          print("evaluation reproduced: test AUC", new["test"]["auc"])
+          PY
