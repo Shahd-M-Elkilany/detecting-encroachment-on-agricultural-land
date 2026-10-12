@@ -25,8 +25,7 @@ LABELS     = ROOT / "data/ba_labels.json"
 MODEL_PATH = ROOT / "models/ba_rf_model.pkl"
 OUT_DIR    = ROOT / "outputs"; OUT_DIR.mkdir(exist_ok=True)
 
-ALERT_THRESHOLD  = 0.40
-YELLOW_THRESHOLD = 0.23
+from alarm import ALERT_THRESHOLD, YELLOW_THRESHOLD, fusion_score, risk_level  # single source
 GEOCODE_DELAY    = 1.1   # Nominatim rate limit: 1 req/sec
 SUBMIT_DELAY     = 0.5   # between case submissions
 
@@ -153,10 +152,8 @@ def process_site(site: str, bundle, dry_run: bool) -> dict:
     feats = pair_features(d1, d2).reshape(1,-1)
     if scaler: feats = scaler.transform(feats)
     prob = float(clf.predict_proba(feats)[0,1])
-    spec = float(np.nanmean(np.maximum(d1[0]-d2[0], 0)))
-    fusion = round(0.65*prob + 0.35*spec, 4)
-    alarm = ("High"   if fusion >= ALERT_THRESHOLD  else
-             "Medium" if fusion >= YELLOW_THRESHOLD else "Low")
+    fusion = round(fusion_score(prob, d1, d2), 4)
+    alarm = risk_level(fusion)
     clusters, boxes = find_clusters(d1, d2, px_ha)
     total_m2 = round(sum(clusters)*10_000, 2)
 
@@ -214,4 +211,32 @@ def main():
     sites = sorted(sites)
 
     print(f"{'[DRY RUN] ' if args.dry_run else ''}Processing {len(sites)} sites...\n")
-    bundle = pickle.load(
+    bundle = pickle.load(open(MODEL_PATH, "rb"))
+
+    results, failed = [], []
+    for i, site in enumerate(sites, 1):
+        print(f"[{i:02d}/{len(sites)}] {site}", end="  ", flush=True)
+        try:
+            res = process_site(site, bundle, args.dry_run)
+            results.append(res)
+            gov = res.get("governorate") or res.get("payload", {}).get("governorate", "")
+            print(f"✓  risk={res.get('risk_level') or res.get('payload',{}).get('risk_level','')}  gov={gov!r}")
+        except Exception as e:
+            print(f"✗  ERROR: {e}")
+            failed.append({"site": site, "error": str(e)})
+
+        # Nominatim requires >= 1 req/sec — wait between sites
+        if i < len(sites):
+            time.sleep(GEOCODE_DELAY)
+
+    log = OUT_DIR / "batch_upload_results.json"
+    log.write_text(json.dumps({"submitted": len(results), "failed": len(failed),
+                                "results": results, "errors": failed}, indent=2))
+    print(f"\n{'='*50}")
+    print(f"Done: {len(results)} submitted, {len(failed)} failed")
+    if failed:
+        print(f"Failed sites: {[f['site'] for f in failed]}")
+    print(f"Log saved: {log}")
+
+if __name__ == "__main__":
+    main()

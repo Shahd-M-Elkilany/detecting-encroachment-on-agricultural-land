@@ -23,8 +23,7 @@ BA_DIR     = ROOT / "data/KEMET1_BeforeAfter/KEMET1_BeforeAfter_Tiles"
 MODEL_PATH = ROOT / "models/ba_rf_model.pkl"
 OUT_DIR    = ROOT / "outputs"; OUT_DIR.mkdir(exist_ok=True)
 
-ALERT_THRESHOLD  = 0.40
-YELLOW_THRESHOLD = 0.23
+from alarm import ALERT_THRESHOLD, YELLOW_THRESHOLD, fusion_score, risk_level  # single source
 
 def extract_stats(arr):
     feats = []
@@ -150,9 +149,8 @@ def run(site: str, dry_run: bool = False):
     feats = pair_features(d1, d2).reshape(1,-1)
     if scaler: feats = scaler.transform(feats)
     prob = float(clf.predict_proba(feats)[0,1])
-    spec = float(np.nanmean(np.maximum(d1[0]-d2[0], 0)))
-    fusion = round(0.65*prob + 0.35*spec, 4)
-    alarm = "High" if fusion >= ALERT_THRESHOLD else ("Medium" if fusion >= YELLOW_THRESHOLD else "Low")
+    fusion = round(fusion_score(prob, d1, d2), 4)
+    alarm = risk_level(fusion)
     clusters, boxes = find_clusters(d1, d2, px_ha)
     total_m2 = round(sum(clusters)*10_000, 2)
     print(f"      prob={prob:.4f}  fusion={fusion}  risk={alarm}  area={total_m2:.0f} m2  clusters={len(clusters)}")
