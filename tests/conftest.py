@@ -1,37 +1,52 @@
-"""Tests run from the repository root and need no satellite tiles."""
-import sys
-from pathlib import Path
+"""Shared fixtures. Everything runs on synthetic tiles plus the committed feature table."""
+
+from __future__ import annotations
 
 import numpy as np
 import pytest
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT))
+
+def make_pair(seed: int = 0, size: int = 120, block=(40, 70)):
+    """A vegetated tile in which a block of pixels turns into built-up land (9 ha by default)."""
+    rng = np.random.default_rng(seed)
+    before = rng.normal(0.0, 0.02, size=(6, size, size)).astype(np.float32)
+    before[0] += 0.6  # NDVI high: vegetated
+    before[1] -= 0.2  # NDBI low: not built-up
+    after = before + rng.normal(0.0, 0.01, size=before.shape).astype(np.float32)
+    a, b = block
+    after[0, a:b, a:b] = 0.1
+    after[1, a:b, a:b] = 0.2
+    return before, after
 
 
 @pytest.fixture
 def tile_pair():
-    """A synthetic before/after pair shaped like the real tiles: 6 index bands, 10 m pixels.
-
-    A 30 x 30 pixel block (9 ha) turns from vegetation into built-up land.
-    """
-    rng = np.random.default_rng(0)
-    before = rng.normal(0.0, 0.02, size=(6, 120, 120)).astype(np.float32)
-    before[0] += 0.6   # NDVI: vegetated everywhere
-    before[1] -= 0.2   # NDBI: not built-up
-    after = before + rng.normal(0.0, 0.01, size=before.shape).astype(np.float32)
-    after[0, 40:70, 40:70] = 0.1    # vegetation lost
-    after[1, 40:70, 40:70] = 0.2    # built-up signal gained
-    return before, after
+    return make_pair()
 
 
-def write_geotiff(path, data):
+def write_geotiff(path, data, west=300_000, north=3_400_000):
     import rasterio
     from rasterio.transform import from_origin
 
     with rasterio.open(
-        path, "w", driver="GTiff", height=data.shape[1], width=data.shape[2], count=data.shape[0],
-        dtype="float32", crs="EPSG:32636", transform=from_origin(300000, 3400000, 10, 10),
+        path,
+        "w",
+        driver="GTiff",
+        height=data.shape[1],
+        width=data.shape[2],
+        count=data.shape[0],
+        dtype="float32",
+        crs="EPSG:32636",
+        transform=from_origin(west, north, 10, 10),
     ) as dst:
         dst.write(data)
     return path
+
+
+@pytest.fixture
+def tile_files(tmp_path, tile_pair):
+    before, after = tile_pair
+    return (
+        write_geotiff(tmp_path / "siteX_before_2024.tif", before),
+        write_geotiff(tmp_path / "siteX_after_2025.tif", after),
+    )

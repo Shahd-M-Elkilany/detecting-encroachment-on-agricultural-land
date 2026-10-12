@@ -1,0 +1,422 @@
+{
+ "protocol": "Evaluation protocol: model selection, threshold choice, held-out test, robustness.\n\nSites are split once into a development set (255 sites) and a test set (45\nsites; the same test sites as the original project, stratified split, seed 42).\nEverything that is chosen - the model, its settings, the alarm thresholds - is\nchosen on the development set by repeated cross-validation. The test set is\nscored once, at the end.",
+ "sites": {
+  "development": 255,
+  "development_positives": 67,
+  "test": 45,
+  "test_positives": 11
+ },
+ "model_selection_cv_on_development": {
+  "logreg": {
+   "auc": {
+    "mean": 0.8822,
+    "std": 0.0557,
+    "min": 0.7389,
+    "max": 0.973,
+    "n": 25
+   },
+   "average_precision": {
+    "mean": 0.7974,
+    "std": 0.0858,
+    "min": 0.5986,
+    "max": 0.9411,
+    "n": 25
+   }
+  },
+  "random_forest": {
+   "auc": {
+    "mean": 0.777,
+    "std": 0.0518,
+    "min": 0.6883,
+    "max": 0.8765,
+    "n": 25
+   },
+   "average_precision": {
+    "mean": 0.6411,
+    "std": 0.0776,
+    "min": 0.4973,
+    "max": 0.7935,
+    "n": 25
+   }
+  },
+  "gradient_boosting": {
+   "auc": {
+    "mean": 0.797,
+    "std": 0.04,
+    "min": 0.7267,
+    "max": 0.8745,
+    "n": 25
+   },
+   "average_precision": {
+    "mean": 0.6646,
+    "std": 0.0861,
+    "min": 0.4994,
+    "max": 0.7848,
+    "n": 25
+   }
+  }
+ },
+ "development_out_of_fold": {
+  "auc": 0.8822,
+  "auc_with_ndvi_fusion": 0.8825,
+  "thresholds": {
+   "medium": 0.1627,
+   "high": 0.5149
+  },
+  "medium": {
+   "threshold": 0.1627,
+   "tp": 61,
+   "fp": 57,
+   "fn": 6,
+   "tn": 131,
+   "precision": 0.5169,
+   "recall": 0.9104
+  },
+  "high": {
+   "threshold": 0.5149,
+   "tp": 37,
+   "fp": 11,
+   "fn": 30,
+   "tn": 177,
+   "precision": 0.7708,
+   "recall": 0.5522
+  }
+ },
+ "test": {
+  "auc": 0.9733,
+  "auc_ci95": [
+   0.9091,
+   1.0
+  ],
+  "average_precision": 0.9466,
+  "brier": 0.0602,
+  "medium": {
+   "threshold": 0.1627,
+   "tp": 10,
+   "fp": 7,
+   "fn": 1,
+   "tn": 27,
+   "precision": 0.5882,
+   "recall": 0.9091
+  },
+  "high": {
+   "threshold": 0.5149,
+   "tp": 9,
+   "fp": 1,
+   "fn": 2,
+   "tn": 33,
+   "precision": 0.9,
+   "recall": 0.8182
+  },
+  "random_forest_v1_auc": 0.8824,
+  "random_forest_v1_auc_ci95": [
+   0.723,
+   0.992
+  ],
+  "calibration": [
+   {
+    "predicted": 0.0212,
+    "observed": 0.0,
+    "n": 15
+   },
+   {
+    "predicted": 0.1014,
+    "observed": 0.0667,
+    "n": 15
+   },
+   {
+    "predicted": 0.6355,
+    "observed": 0.6667,
+    "n": 15
+   }
+  ],
+  "per_site": [
+   {
+    "site": "site0",
+    "label": 1,
+    "probability": 0.8087
+   },
+   {
+    "site": "site2",
+    "label": 0,
+    "probability": 0.0377
+   },
+   {
+    "site": "site9",
+    "label": 0,
+    "probability": 0.0252
+   },
+   {
+    "site": "site10",
+    "label": 0,
+    "probability": 0.0431
+   },
+   {
+    "site": "site16",
+    "label": 0,
+    "probability": 0.0019
+   },
+   {
+    "site": "site17",
+    "label": 0,
+    "probability": 0.0243
+   },
+   {
+    "site": "site44",
+    "label": 0,
+    "probability": 0.1141
+   },
+   {
+    "site": "site60",
+    "label": 0,
+    "probability": 0.2015
+   },
+   {
+    "site": "site64",
+    "label": 0,
+    "probability": 0.4179
+   },
+   {
+    "site": "site71",
+    "label": 1,
+    "probability": 0.9607
+   },
+   {
+    "site": "site75",
+    "label": 0,
+    "probability": 0.0602
+   },
+   {
+    "site": "site79",
+    "label": 0,
+    "probability": 0.0192
+   },
+   {
+    "site": "site85",
+    "label": 1,
+    "probability": 0.6185
+   },
+   {
+    "site": "site89",
+    "label": 0,
+    "probability": 0.0121
+   },
+   {
+    "site": "site90",
+    "label": 1,
+    "probability": 0.3857
+   },
+   {
+    "site": "site93",
+    "label": 0,
+    "probability": 0.0224
+   },
+   {
+    "site": "site107",
+    "label": 0,
+    "probability": 0.005
+   },
+   {
+    "site": "site113",
+    "label": 0,
+    "probability": 0.036
+   },
+   {
+    "site": "site133",
+    "label": 0,
+    "probability": 0.0588
+   },
+   {
+    "site": "site138",
+    "label": 0,
+    "probability": 0.324
+   },
+   {
+    "site": "site150",
+    "label": 0,
+    "probability": 0.5654
+   },
+   {
+    "site": "site155",
+    "label": 1,
+    "probability": 0.8735
+   },
+   {
+    "site": "site165",
+    "label": 1,
+    "probability": 0.715
+   },
+   {
+    "site": "site166",
+    "label": 1,
+    "probability": 0.7192
+   },
+   {
+    "site": "site171",
+    "label": 0,
+    "probability": 0.0517
+   },
+   {
+    "site": "site173",
+    "label": 0,
+    "probability": 0.0324
+   },
+   {
+    "site": "site174",
+    "label": 0,
+    "probability": 0.009
+   },
+   {
+    "site": "site177",
+    "label": 0,
+    "probability": 0.3645
+   },
+   {
+    "site": "site207",
+    "label": 0,
+    "probability": 0.0243
+   },
+   {
+    "site": "site211",
+    "label": 0,
+    "probability": 0.3366
+   },
+   {
+    "site": "site213",
+    "label": 1,
+    "probability": 0.9293
+   },
+   {
+    "site": "site230",
+    "label": 0,
+    "probability": 0.2076
+   },
+   {
+    "site": "site235",
+    "label": 0,
+    "probability": 0.0788
+   },
+   {
+    "site": "site250",
+    "label": 0,
+    "probability": 0.0483
+   },
+   {
+    "site": "site251",
+    "label": 0,
+    "probability": 0.084
+   },
+   {
+    "site": "site252",
+    "label": 0,
+    "probability": 0.0345
+   },
+   {
+    "site": "site257",
+    "label": 0,
+    "probability": 0.0096
+   },
+   {
+    "site": "site262",
+    "label": 0,
+    "probability": 0.1248
+   },
+   {
+    "site": "site264",
+    "label": 1,
+    "probability": 0.9282
+   },
+   {
+    "site": "site268",
+    "label": 0,
+    "probability": 0.1426
+   },
+   {
+    "site": "site270",
+    "label": 1,
+    "probability": 0.586
+   },
+   {
+    "site": "site271",
+    "label": 0,
+    "probability": 0.071
+   },
+   {
+    "site": "site281",
+    "label": 0,
+    "probability": 0.1051
+   },
+   {
+    "site": "site294",
+    "label": 0,
+    "probability": 0.0243
+   },
+   {
+    "site": "site299",
+    "label": 1,
+    "probability": 0.1288
+   }
+  ]
+ },
+ "robustness_all_sites": {
+  "spatial_folds": {
+   "k": 5,
+   "sites_per_fold": [
+    76,
+    58,
+    52,
+    61,
+    53
+   ],
+   "positives_per_fold": [
+    15,
+    23,
+    25,
+    9,
+    6
+   ]
+  },
+  "logreg": {
+   "random_5fold_x10": {
+    "mean": 0.8985,
+    "std": 0.0394,
+    "min": 0.8148,
+    "max": 0.973,
+    "n": 50
+   },
+   "spatial_5fold": [
+    0.9377,
+    0.8733,
+    0.837,
+    0.9359,
+    0.6986
+   ],
+   "spatial_5fold_mean": 0.8565,
+   "train_south_test_north": 0.8004,
+   "train_north_test_south": 0.92
+  },
+  "random_forest": {
+   "random_5fold_x10": {
+    "mean": 0.8087,
+    "std": 0.0559,
+    "min": 0.6815,
+    "max": 0.9489,
+    "n": 50
+   },
+   "spatial_5fold": [
+    0.8361,
+    0.7416,
+    0.6652,
+    0.6026,
+    0.5887
+   ],
+   "spatial_5fold_mean": 0.6868,
+   "train_south_test_north": 0.7283,
+   "train_north_test_south": 0.6976
+  }
+ },
+ "leaky_rule_reference": {
+  "note": "AUC of pct_converted, the quantity the labels are thresholded on. Not a usable feature.",
+  "auc": 0.9742
+ }
+}

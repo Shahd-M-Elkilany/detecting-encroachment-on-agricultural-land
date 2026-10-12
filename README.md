@@ -1,185 +1,182 @@
-# KEMET1: Detecting Encroachment on Agricultural Land
+# KEMET1: detecting building encroachment on Nile Delta farmland
 
-Change detection on Sentinel-2 imagery to flag where farmland in Egypt's Nile
-Delta has been built over. Given a before/after pair of tiles for a site, the
-system scores how likely the site is to contain encroachment, outlines the
-changed clusters, and writes a per-site report.
+[![CI](https://github.com/Shahd-M-Elkilany/detecting-encroachment-on-agricultural-land/actions/workflows/ci.yml/badge.svg)](https://github.com/Shahd-M-Elkilany/detecting-encroachment-on-agricultural-land/actions/workflows/ci.yml)
+![Python](https://img.shields.io/badge/python-3.10%2B-blue)
+![scikit-learn](https://img.shields.io/badge/scikit--learn-1.7-orange)
 
-![Before (2024), after (2025), change mask and NDVI difference for two Nile Delta sites](results/viz/kemet1_ba_allchanges.png)
+Building on farmland is a long-running problem in Egypt's Nile Delta. KEMET1
+compares two Sentinel-2 images of the same 2.6 km site, one from 2024 and one
+from 2025, and estimates how likely it is that farmland was built over. It ranks
+sites for inspection, outlines where the change happened and produces a report,
+a web app and cases for the team's monitoring backend.
 
-*Two of the 300 sites. Left to right: before (2024), after (2025), detected
-change mask, and the NDVI difference (red = vegetation lost). False colour:
-R = NDBI, G = NDVI, B = MNDWI, at 10 m per pixel.*
+![Three test sites: a correct alarm, a false alarm and a miss](docs/figures/examples.png)
 
-This was a graduation project built by a Data & AI team. The code and
-experiments in this repository were committed by
-[Shahd Elkilany](https://github.com/Shahd-M-Elkilany).
+<sub>Three of the 45 held-out test sites. Top: a correct High alarm, with several hectares of fields turned
+built-up. Middle: a false alarm, where vegetation fell across much of the tile, most likely harvest or fallow timing.
+Bottom: a miss in a reclaimed-desert landscape, where new irrigated land elsewhere in the tile (the green
+circle) outweighs about 6 ha of conversion in the tile-wide statistics.</sub>
 
 ## Results
 
-[![CI](https://github.com/Shahd-M-Elkilany/detecting-encroachment-on-agricultural-land/actions/workflows/ci.yml/badge.svg)](https://github.com/Shahd-M-Elkilany/detecting-encroachment-on-agricultural-land/actions/workflows/ci.yml)
+The 300 sites carry automatic labels (see [what the labels are](#what-the-labels-are)). Every figure below
+measures how well the model reproduces those labels from spectral change alone.
 
-The production model is a Random Forest over 44 spectral-change features
-(7 statistics for each of 6 band differences, plus mean ΔNDVI and mean ΔNDBI),
-trained on 300 co-registered Sentinel-2 tile pairs (2024 vs 2025).
+| Evaluation | v2: logistic regression | v1: Random Forest | Notes |
+| --- | ---: | ---: | --- |
+| Random 5-fold CV ×10, all 300 sites | **0.90** ± 0.04 | 0.81 ± 0.06 | ROC AUC; the headline figure |
+| Spatial 5-fold CV, whole regions held out | **0.86** | 0.69 | Mean of 5 regions (v2 range 0.70 to 0.94) |
+| Held-out test sites (45, 11 positive) | **0.97** | 0.88 | 95 % CI for v2: 0.91 to 1.00 |
 
-| Evaluation | AUC | Notes |
-| --- | --- | --- |
-| **30 random splits, test (headline)** | **0.799 ± 0.068** | Same 70/15/15 protocol and settings; range 0.68 to 0.90 |
-| Held-out test, seed 42 (45 sites, 11 positive) | 0.872 | The split the shipped model was trained on |
-| Validation, seed 42 (45 sites) | 0.861 | 95% bootstrap CI 0.74 to 0.96 |
-| Geographic holdout, train south / test north | 0.717 | Split at the median latitude |
-| Geographic holdout, train north / test south | 0.688 | 150 sites per half |
+![v2 against v1 under three evaluations](docs/figures/model_comparison.png)
 
-Read the first row as the model's expected performance. The seed-42 figures
-are real but sit near the top of the range that different random splits give.
+Both models use the same 44 features and the same sites. Moving from a Random Forest to a regularised
+logistic regression is the main change, and it holds up best where it matters: on regions the model has
+never seen, AUC rises from 0.69 to 0.86.
 
-Every script scores a site the same way (`alarm.py`):
-`fusion = 0.65 × RF probability + 0.35 × mean NDVI loss`. The two alarm
-thresholds were chosen on the validation split; on the seed-42 test split they give:
+**Alarm tiers.** A site's risk comes from the model's probability. Both thresholds were fixed on
+cross-validated predictions for the 255 development sites, then applied once to the 45 test sites:
 
-| Alarm tier | Precision | Recall | Correct / false alarms / missed |
-| --- | --- | --- | --- |
-| Medium or High (fusion ≥ 0.23) | 0.78 | 0.64 | 7 / 2 / 4 |
-| High (fusion ≥ 0.30) | 0.86 | 0.55 | 6 / 1 / 5 |
-| Earlier High threshold (fusion ≥ 0.40) | 1.00 | 0.27 | 3 / 0 / 8 |
+| Tier | Threshold | Precision | Recall | Correct / false alarms / missed (test) |
+| --- | ---: | ---: | ---: | --- |
+| High ("likely encroachment") | ≥ 0.51 | 0.90 | 0.82 | 9 / 1 / 2 |
+| Medium or above ("check this site") | ≥ 0.16 | 0.59 | 0.91 | 10 / 7 / 1 |
 
-The High threshold was lowered from 0.40 to 0.30 because, on validation, 0.40
-missed 8 of 12 flagged sites for no gain in precision. The two tiers are close:
-with 11 or 12 positives to tune on, the data supports one operating point
-better than two. The HTML files in `reports/` were generated before this change;
-`python batch_report.py` regenerates them.
+On the development sites, where 255 sites give a steadier estimate than 45, the same thresholds give
+precision 0.77 at recall 0.55 for High and precision 0.52 at recall 0.91 for Medium. Expect numbers between
+the two on new sites.
 
-### What these numbers do and do not show
+![Test-site probabilities against the two thresholds](docs/figures/test_scores.png)
 
-- **The labels are automatic, not surveyed.** A site is labelled positive when
-  `pct_converted > 0.02576` or `max_cluster_ha > 3.13`, which gives 78 positive
-  and 222 negative sites; a test checks that this rule explains all 300 labels.
-  The model is therefore learning to reproduce a spectral rule from other
-  spectral features, and every figure above measures agreement with that rule.
-  The labels have not been checked against ground surveys or
-  very-high-resolution imagery.
-- **A label leak was found and removed.** Early versions included `pct_conv`
-  and `pct_new` as features, which are computed from the same threshold that
-  produces the labels. With them the test AUC was 1.0; without them it is
-  0.88 in the ablation run (`results/ablation_results.json`). Every number
-  above is from the 44-feature model that excludes them.
-- **The result depends on the split.** Repeating the 70/15/15 protocol with
-  the production hyper-parameters over 30 seeds gives a test AUC between 0.68
-  and 0.90 (`results/repeated_splits.json`, from `repeated_splits.py`).
-- **Spatial generalisation is weaker than the random split suggests.** Training
-  on one half of the Delta and testing on the other drops AUC to about 0.70.
-- **The test set is small.** 45 sites with 11 positives, so one site moves
-  recall by 9 points.
+Full results, including per-site test probabilities and calibration, are in
+[`results/evaluation.json`](results/evaluation.json).
+
+## What the labels are
+
+The labels were not drawn by hand. A site is positive when at least 2.576 % of its pixels went from vegetated
+to built-up (NDVI falls below 0.25 and NDBI rises by more than 0.08), or when one connected patch of such
+pixels exceeds 3.13 ha. That gives 78 positive and 222 negative sites. `kemet1 extract` recomputes both
+quantities from the tiles and reproduces all 300 labels exactly.
+
+What follows from that:
+
+- **The model learns a spectral rule, not ground truth.** A High result marks a site worth inspecting on
+  very-high-resolution imagery or on the ground; it is not proof of illegal building. The rule itself cannot
+  tell a new house from a harvested field that happens to look built-up, as the middle example shows.
+- **The rule's own inputs are never features.** v1 once included them and scored a perfect 1.0, a label
+  leak that was found and removed. The 44 features are statistics of band differences, which the rule does
+  not use directly.
+- **Real accuracy needs real labels.** Labelling even 50 to 100 sites by hand from historical
+  very-high-resolution imagery would turn these figures into accuracy estimates; `kemet1 evaluate` works
+  unchanged on a feature table with those labels.
 
 ## How it works
 
-1. Sentinel-2 L2A tiles for each site are exported from Google Earth Engine
-   (`gee_sample_download.js`), one for 2024 and one for 2025.
-2. For each pair, per-band differences and the NDVI and NDBI changes are
-   summarised into 44 statistics.
-3. A Random Forest with Platt-calibrated probabilities scores the site.
-4. The RF probability is fused with the tile's mean NDVI loss
-   (`0.65 × RF + 0.35 × NDVI loss`, defined once in `alarm.py`) and mapped to
-   a High, Medium or Low alarm.
-5. Separately, pixels where NDVI falls below 0.25 and NDBI rises by more than
-   0.08 are grouped into clusters, measured in hectares, and drawn on an HTML
-   report with a map.
+```mermaid
+flowchart LR
+    A[Sentinel-2 composite 2024] --> C[6 index bands<br/>NDVI, NDBI, MNDWI,<br/>SAVI, BSI, NDWI]
+    B[Sentinel-2 composite 2025] --> C
+    C --> D[Per-band difference<br/>7 statistics each<br/>= 44 features]
+    D --> E[Standardise +<br/>logistic regression]
+    E --> F[Probability<br/>→ High / Medium / Low]
+    C --> G[Converted pixels<br/>→ clusters ≥ 0.5 ha]
+    F --> H[Site report, web app,<br/>backend case]
+    G --> H
+```
+
+1. **Tiles.** Each site is a 262 × 262 pixel tile (10 m) per year carrying six spectral indices computed from
+   Sentinel-2 bands. [`scripts/gee_sample_export.js`](scripts/gee_sample_export.js) shows the index
+   computation in Google Earth Engine.
+2. **Features.** For each index, the after-minus-before difference is summarised by its mean, standard
+   deviation and 10th to 90th percentiles; mean NDVI and NDBI change complete the 44.
+3. **Model.** A standardised L2 logistic regression (C = 1), chosen over a Random Forest and gradient
+   boosting by repeated cross-validation on the development sites
+   ([`results/evaluation.json`](results/evaluation.json), `model_selection_cv_on_development`).
+4. **Where it changed.** Pixels that switched from vegetated to built-up are grouped into connected clusters
+   of at least 0.5 ha, scored by built-up gain and NDVI loss, and drawn on the report in red, orange or yellow.
+5. **Outputs.** An HTML report per site with a map
+   ([example](docs/examples/site264_report.html)), a summary map of all sites, a FastAPI web app, and cases
+   submitted to the KEMET backend.
+
+![The 300 sites and the five regions used for spatial cross-validation](docs/figures/site_map.png)
 
 ## Quick start
 
 ```bash
-pip install -r requirements.txt
+git clone https://github.com/Shahd-M-Elkilany/detecting-encroachment-on-agricultural-land.git
+cd detecting-encroachment-on-agricultural-land
+pip install -e ".[dev]"
 
-# Evaluate the shipped model on the held-out test split
-python evaluate_ba.py
-
-# Retrain the 44-feature model and rerun the leak ablation
-python ablation_no_circular.py
-
-# Geographic holdout (north/south split)
-python geographic_holdout.py
-
-# Spread of the metrics over 30 random splits
-python repeated_splits.py
-
-# Score one site and write an HTML report to outputs/
-python run_inference.py --site site0
-
-# Serve the web interface locally
-python app.py
+make reproduce          # train, evaluate and redraw every figure from data/features.csv (~2 min)
+pytest                  # 40 tests, no satellite tiles needed
 ```
 
-The Sentinel-2 tiles are not stored in this repository. Scripts that read
-them expect `data/KEMET1_BeforeAfter/KEMET1_BeforeAfter_Tiles/` to contain
-files named `site{N}_before_2024.tif` and `site{N}_after_2025.tif`.
-
-To run in a container:
+With tiles in `data/tiles/` (named `site{N}_before_2024.tif` and `site{N}_after_2025.tif`, see
+[`docs/DATA.md`](docs/DATA.md)):
 
 ```bash
-docker build -t kemet1 .
-docker run -p 8000:8000 kemet1
+kemet1 extract                          # recompute data/features.csv from the tiles
+kemet1 score site264                    # one site -> outputs/reports/site264_report.html
+kemet1 score --before a.tif --after b.tif
+kemet1 report                           # every positive site + an index.html summary map
+kemet1 upload site264 --dry-run         # build the backend case without sending it
+kemet1 serve                            # web app on http://localhost:8000
 ```
 
-## Tests
-
-```bash
-pip install -r requirements.txt pytest httpx
-pytest
-```
-
-The 38 tests run on synthetic tiles, so they need no dataset. They check that
-the five copies of the feature code (`evaluate_ba.py`, `geographic_holdout.py`,
-`ablation_no_circular.py`, `run_inference.py`, `app.py`) produce identical
-features, that every script uses the same alarm score and thresholds, that
-clustering and area figures are right, that the shipped labels,
-results files and model are consistent with each other and with this README,
-and that the web API scores a tile pair end to end. They run on every push
-through GitHub Actions, together with a syntax check of every script.
+Or with Docker: `docker build -t kemet1 . && docker run -p 8000:8000 kemet1`.
 
 ## Repository layout
 
 ```
-app.py                    FastAPI server for the web interface (static/)
-run_inference.py          Score one site and write an HTML report
-alarm.py                  The alarm score and its thresholds (shared by all scripts)
-evaluate_ba.py            Test-split evaluation and results dashboard
-ablation_no_circular.py   Retrain without the leaking features
-geographic_holdout.py     North/south spatial holdout
-repeated_splits.py        Metric spread over 30 random splits
-tests/                    Unit and API tests on synthetic tiles
-batch_report.py           Regenerate reports for all positive sites
-upload_case.py            Send one site to the backend API
-batch_upload.py           Send all positive sites, with geocoding and retries
-pipeline.py, run.py       The experimental 8-step pipeline (see below)
-src/                      Pipeline step modules
-config/settings.py        Pipeline configuration
-models/                   Trained Random Forest bundles
-data/                     Labels and evaluation outputs (JSON)
-results/                  Dashboards, ablation output, sample imagery
-reports/                  Generated HTML reports for the 78 positive sites
-docs/                     Project report, figures and dataset notes
+encroachment/          the package
+  features.py          tile reading, the 44 features, the labelling rule
+  clusters.py          converted-pixel clusters and their scores
+  model.py             candidate models, training, saving and loading
+  evaluation.py        dev/test split, cross-validation, spatial folds, threshold choice
+  alarm.py             the two risk thresholds
+  analysis.py          scores one site
+  report.py, imagery.py, templates/   HTML site reports and the summary map
+  backend.py           cases for the KEMET team backend
+  web/                 FastAPI app and its page
+  figures.py           every figure in this README
+  cli.py               the kemet1 command
+data/                  labels.json, features.csv (300 sites x 44 features + coordinates)
+models/                the trained model and its metadata (training sites, held-out sites)
+results/               evaluation.json; v1/ keeps the original project's results
+docs/                  data and model notes, figures, an example report, the team's project documents
+tests/                 unit, integration and consistency tests
+scripts/               an example Earth Engine export of the six indices
+archive/               earlier stages: v1 scripts, a multi-date classifier, an 8-step deep-learning pipeline
 ```
 
-## Experimental 8-step pipeline
+## Testing
 
-`pipeline.py` and `src/` hold a longer pipeline that was explored alongside
-the classifier: Sentinel-2 acquisition, cloud detection (U-Net with a ResNet34
-encoder), cloud removal by inpainting, spectral indices, NDBI-threshold change
-detection, agriculture segmentation (SegFormer-B4), building detection (SAM),
-and a final intersection that maps buildings on farmland. It uses pretrained
-weights without fine-tuning on Nile Delta data and needs the optional
-dependencies listed at the bottom of `requirements.txt`. The results reported
-above come from the Random Forest classifier, not from this pipeline.
+`pytest` runs 40 tests in a few seconds. Besides unit tests on synthetic tiles, they check that the shipped
+model reproduces the reported test AUC from the committed feature table, that retraining gives the same
+coefficients, that the test split is the same 45 sites v1 was evaluated on, that the labels are exactly the
+documented rule, that the alarm thresholds are the ones chosen on development data, that every number in
+this README matches `results/evaluation.json`, and that the web API scores a GeoTIFF pair end to end. GitHub
+Actions runs them with lint on every push.
 
-`train_classifier.py`, `evaluate.py` and `predict.py` belong to an earlier
-multi-temporal classifier (75 tiles over four dates, labelled visually by one
-annotator) that this model replaced. Its trained model file and tiles are not
-in this repository, so its results cannot be reproduced from here and are not
-quoted above.
+The feature code was also checked against the real data: run on all 300 tile pairs, it reproduces the
+committed feature table to within 5 × 10⁻⁶ and the labelling inputs exactly.
 
-## Data sources
+## Limitations
 
-- Sentinel-2 L2A surface reflectance (Copernicus), accessed through Google
-  Earth Engine.
-- Dataset notes are in [`docs/datasets_reference.md`](docs/datasets_reference.md).
+- **Automatic labels.** See above. This is the main limitation and the main next step.
+- **Seasonal confusion.** Harvest or fallow timing can mimic conversion; the one High false alarm on the test
+  sites is most likely a tile-wide harvest.
+- **Tile-wide features.** The model sees statistics of the whole 684 ha tile, so vegetation gains elsewhere
+  (newly irrigated land, for example) can mask a few hectares of conversion, as in the missed example.
+- **One region's spatial fold is weak.** Holding out the north-east (fold 5, 6 positives) gives AUC 0.70.
+- **Two dates only, 10 m pixels.** Single houses are below what Sentinel-2 resolves; the cluster minimum is
+  0.5 ha.
+
+## Data and credits
+
+Sentinel-2 L2A surface reflectance (Copernicus) via Google Earth Engine. The 300 tile pairs (1.1 GB) are not
+stored in the repository; [`docs/DATA.md`](docs/DATA.md) describes them and how to obtain them.
+
+KEMET1 began as a graduation project of a Data & AI team; the project report, presentation and dataset
+documents are in [`docs/project/`](docs/project). This repository, the v2 model and the package are
+maintained by [Shahd Elkilany](https://github.com/Shahd-M-Elkilany).
