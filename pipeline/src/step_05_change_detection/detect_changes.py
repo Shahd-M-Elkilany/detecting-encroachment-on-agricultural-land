@@ -61,26 +61,33 @@ def run(
 
 
 def _run_changeformer(t1: np.ndarray, t2: np.ndarray, weights: Path) -> tuple[np.ndarray, np.ndarray]:
-    import torch
+    """ChangeFormerV6 on the RGB of two raw-band images (bands B2, B3, B4, ...), in 256-pixel windows.
 
-    device = "cuda" if torch.cuda.is_available() else "cpu"
+    Uses the loader and pre-processing checked in changeformer/run_changeformer.py: the
+    checkpoint's ``model_G_state_dict``, a shared 2-98 % stretch of both dates and
+    ChangeFormer's own (0.5, 0.5) normalisation.
+    """
+    import sys
 
-    # ChangeFormer expects [B,C,H,W] pairs
-    t1_t = torch.from_numpy(t1).unsqueeze(0).to(device)
-    t2_t = torch.from_numpy(t2).unsqueeze(0).to(device)
+    here = Path(__file__).resolve().parents[2]
+    sys.path.insert(0, str(here / "changeformer"))
+    from run_changeformer import load_model, predict
 
-    # Dynamically import ChangeFormer (must be on PYTHONPATH)
-    from models.ChangeFormer import ChangeFormerV6
-
-    model = ChangeFormerV6()
-    state = torch.load(str(weights), map_location=device)
-    model.load_state_dict(state)
-    model.eval().to(device)
-
-    with torch.no_grad():
-        logits = model(t1_t, t2_t)  # [B,2,H,W]
-        probs = torch.softmax(logits, dim=1)[:, 1].squeeze().cpu().numpy()
-
+    net = load_model(CFG["code"], str(weights))
+    rgb = [img[[2, 1, 0]].astype(np.float32) for img in (t1, t2)]
+    both = np.concatenate([x.reshape(3, -1) for x in rgb], 1)
+    lo, hi = np.percentile(both, 2, 1), np.percentile(both, 98, 1)
+    h, w = t1.shape[1:]
+    H, W = -(-h // 256) * 256, -(-w // 256) * 256
+    a, b = (
+        np.pad(
+            np.clip(np.transpose((x - lo[:, None, None]) / (hi - lo + 1e-9)[:, None, None], (1, 2, 0)), 0, 1),
+            ((0, H - h), (0, W - w), (0, 0)),
+            mode="reflect",
+        )
+        for x in rgb
+    )
+    probs = predict(net, a, b)[:h, :w]
     mask = (probs > CFG["threshold"]).astype(np.uint8)
     return mask, probs.astype(np.float32)
 

@@ -124,8 +124,15 @@ model sees almost no change anywhere:
 
 ![Sentinel-2 pairs and ChangeFormer's change probability at three scales](docs/figures/changeformer_examples.png)
 
+The team's sliding-window idea, cutting 130 m windows and resizing them to LEVIR-CD's 0.5 m pixels, was tested too:
+on 33 windows centred on fields the labels mark as converted, ChangeFormer marked change in 1. Resizing enlarges
+10 m pixels without adding detail, so the model sees blurred colour patches instead of buildings:
+
+![A LEVIR-CD pair next to Sentinel-2 windows resized to 0.5 m](docs/figures/changeformer_sliding_window.png)
+
 For this sensor, the spectral change features carry the signal. A deep detector would need to be trained or
-fine-tuned on Sentinel-2 change pairs, or applied to very-high-resolution imagery of the sites the classifier flags.
+fine-tuned on Sentinel-2 change pairs, or applied to genuinely sub-metre imagery (such as HORUS-1) of the sites the
+classifier flags.
 Method and reproduction: [`pipeline/changeformer/README.md`](pipeline/changeformer/README.md).
 
 ## What the labels are

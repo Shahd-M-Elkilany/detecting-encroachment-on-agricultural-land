@@ -65,7 +65,8 @@ SPECTRAL_INDICES_CONFIG = {
 
 # ── Step 05 — Change Detection ───────────────────────────────────────────────
 CHANGE_DETECTION_CONFIG = {
-    "model_weights": str(WEIGHTS_DIR / "ChangeFormer_LEVIR.pth"),
+    "model_weights": str(WEIGHTS_DIR / "ChangeFormer_LEVIR.pth"),  # LEVIR-CD best_ckpt.pt, renamed
+    "code": str(ROOT_DIR / "ChangeFormer"),  # clone of github.com/wgcban/ChangeFormer
     "tile_size": 256,
     "overlap": 32,
     "threshold": 0.5,

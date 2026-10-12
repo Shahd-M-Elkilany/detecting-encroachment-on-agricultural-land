@@ -123,3 +123,18 @@ def test_model_comparison_reproduces_and_matches_the_readme(tmp_path):
         assert f"{m['dev_auc']:.2f}" in line, (name, line)
         assert f"{m['test_auc']:.2f}" in line and f"({lo:.2f} to {hi:.2f})" in line, (name, line)
         assert f"{t['precision']:.2f} / {t['recall']:.2f}" in line, (name, line)
+
+
+def test_sliding_window_numbers_match_the_readmes():
+    import csv
+
+    with (ROOT / "results" / "changeformer_sliding_windows.csv").open() as f:
+        rows = list(csv.DictReader(f))
+    converted = [r for r in rows if r["window"] == "converted cluster"]
+    stable = [r for r in rows if r["window"] == "stable farmland"]
+    hit_c = sum(float(r["changed_frac"]) > 0 for r in converted)
+    hit_s = sum(float(r["changed_frac"]) > 0 for r in stable)
+    cf_readme = (PIPELINE / "changeformer" / "README.md").read_text(encoding="utf-8")
+    assert f"| {len(converted)} | {hit_c} of {len(converted)} |" in cf_readme
+    assert f"| {len(stable)} | {hit_s} of {len(stable)} |" in cf_readme
+    assert f"ChangeFormer marked change in {hit_c}" in (ROOT / "README.md").read_text(encoding="utf-8")

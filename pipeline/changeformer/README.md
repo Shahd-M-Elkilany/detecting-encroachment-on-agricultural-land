@@ -45,12 +45,42 @@ suburbs, where a house covers hundreds of pixels; at Sentinel-2's 10 m a house i
 new building cluster is a few blurred pixels inside a field mosaic. Upsampling enlarges the pixels but adds no
 detail.
 
+### Sliding windows at 0.5 m per pixel
+
+The team's idea for closing the resolution gap was to slide a window over the image and feed ChangeFormer crops at
+LEVIR-CD's own scale. [`sliding_window_test.py`](sliding_window_test.py) does exactly that: it cuts 13 × 13-pixel
+windows (130 m, the ground size of a 256-pixel LEVIR-CD crop) and resizes them to 256 × 256, so every pixel the
+model sees is 0.5 m across. To make the test as easy as possible for the model, the windows on the 11 positive
+test sites are centred on the largest fields the labels mark as converted to built-up (on average 79 % of each
+window converted), and the windows on the 34 negative test sites sit on stable farmland
+([`results/changeformer_sliding_windows.csv`](../../results/changeformer_sliding_windows.csv)).
+
+| Windows | Count | Windows where ChangeFormer marks any change |
+| --- | ---: | ---: |
+| Centred on converted fields | 33 | 1 of 33 |
+| Stable farmland | 102 | 0 of 102 |
+
+Its change probability is slightly higher on the converted windows (window-level AUC 0.60), but almost never
+reaches 0.5. Resizing makes each 10 m pixel 20 times larger without adding detail, so the model sees blurred
+colour patches rather than the roofs, roads and shadows it learned from:
+
+![A LEVIR-CD pair next to Sentinel-2 windows resized to 0.5 m](../../docs/figures/changeformer_sliding_window.png)
+
+A window can only show detail the sensor recorded. Real 0.5 m input needs 0.5 m imagery, such as HORUS-1
+panchromatic data, which the project documents already name as the next data source.
+
 What could make a deep change detector work here:
 
 - **Train or fine-tune on Sentinel-2 change pairs** (for example OSCD, or the KEMET1 pairs themselves once hand
   labels exist), with all 13 bands rather than RGB;
-- **Very-high-resolution imagery** (under 1 m) for the sites flagged by the classifier, where pretrained
-  building-change models are in their element.
+- **Very-high-resolution imagery** (under 1 m, for example HORUS-1) for the sites flagged by the classifier,
+  where pretrained building-change models are in their element.
+
+A note on the earlier Step 05 code: the team's version loaded the checkpoint with
+`load_state_dict(checkpoint, strict=False)` on the whole checkpoint file rather than its `model_G_state_dict`
+entry, so no weights matched and ChangeFormer ran with random weights; it also normalised with ImageNet
+statistics instead of ChangeFormer's (0.5, 0.5). Both are fixed in the code here, and the checkpoint check above
+confirms the weights load.
 
 ## Reproducing
 
@@ -65,6 +95,8 @@ cp ../../data/changeformer/changeformer_scores.csv ../../results/
 cd .. && python evaluate_pipeline.py score --tiles ../data/tiles --changeformer ../data/changeformer \
     --variant pct_x1 --out ../results/pipeline_changeformer_pct_x1.csv
 python compare_models.py
+python changeformer/sliding_window_test.py --code ChangeFormer-main --ckpt best_ckpt.pt --s2 ../data/s2_tiles \
+    --tiles ../data/tiles --sites test_sites.txt --out ../results/changeformer_sliding_windows.csv
 ```
 
 The 4× run was restricted to the test sites with `--sites` and a file of site names; the downloaded images (about 300 MB) and
