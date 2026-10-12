@@ -76,19 +76,30 @@ def scores() -> tuple[np.ndarray, np.ndarray, np.ndarray, dict, dict]:
     cf_path = RESULTS / "changeformer_scores.csv"
     if cf_path.exists():
         rows = _read(cf_path)
-        candidates = {}
-        for variant in sorted({r["variant"] for r in rows}):
-            if len({r["site"] for r in rows if r["variant"] == variant}) < len(sites):
-                continue
-            for field in ("mean_prob", "changed_farmland_ha"):
-                s = by_site(rows, field, variant)
-                auc = float(roc_auc_score(y[dev], s[dev])) if np.ptp(s[dev]) > 0 else 0.5
-                candidates[f"{variant} / {field}"] = (auc, s)
+
+        def choose(prefix_ok):
+            candidates = {}
+            for variant in sorted({r["variant"] for r in rows if prefix_ok(r["variant"])}):
+                if len({r["site"] for r in rows if r["variant"] == variant}) < len(sites):
+                    continue
+                for field in ("mean_prob", "changed_farmland_ha"):
+                    s = by_site(rows, field, variant)
+                    auc = float(roc_auc_score(y[dev], s[dev])) if np.ptp(s[dev]) > 0 else 0.5
+                    candidates[f"{variant} / {field}"] = (auc, s)
+            return candidates
+
+        candidates = choose(lambda v: not v.startswith("oscd_"))
         if candidates:
             search = {k: round(v[0], 4) for k, v in candidates.items()}
             chosen = max(candidates, key=lambda k: candidates[k][0])
             search["chosen_on_development"] = chosen
             methods["ChangeFormer (LEVIR-CD weights)"] = candidates[chosen][1]
+        tuned = choose(lambda v: v.startswith("oscd_"))
+        if tuned:
+            chosen = max(tuned, key=lambda k: tuned[k][0])
+            search["oscd_finetuned"] = {k: round(v[0], 4) for k, v in tuned.items()}
+            search["oscd_finetuned"]["chosen_on_development"] = chosen
+            methods["ChangeFormer fine-tuned on OSCD"] = tuned[chosen][1]
 
     pipe_candidates = {}
     for path in sorted(RESULTS.glob("pipeline_changeformer_*.csv")):
@@ -181,6 +192,7 @@ def figure(out_dir: Path = ROOT / "docs" / "figures") -> Path:
         "Random Forest (v1)": "#eb6834",
         "8-step pipeline, spectral rule": "#1baf7a",
         "ChangeFormer (LEVIR-CD weights)": "#6250d6",
+        "ChangeFormer fine-tuned on OSCD": "#d03b3b",
         "8-step pipeline, ChangeFormer in Step 05": "#eda100",
     }
     plt = _style()

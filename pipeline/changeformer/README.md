@@ -82,6 +82,14 @@ entry, so no weights matched and ChangeFormer ran with random weights; it also n
 statistics instead of ChangeFormer's (0.5, 0.5). Both are fixed in the code here, and the checkpoint check above
 confirms the weights load.
 
+## Fine-tuning on Sentinel-2 change data
+
+[`finetune_oscd.ipynb`](finetune_oscd.ipynb) (Google Colab, T4 GPU, about 1.5 hours) fine-tunes the LEVIR-CD
+checkpoint on OSCD, 24 Sentinel-2 pairs at 10 m with hand-drawn urban-change masks, in an RGB and a 5-band
+(adding near-infrared and SWIR) version, then rebuilds the KEMET1 Sentinel-2 tiles in Earth Engine from
+[`data/tile_grids.json`](../../data/tile_grids.json), scores every site and reruns `compare_models.py`. The
+code is in [`finetune_oscd.py`](finetune_oscd.py).
+
 ## Reproducing
 
 Needs an Earth Engine project, PyTorch, `timm`, `einops`, the ChangeFormer code and the checkpoint:
