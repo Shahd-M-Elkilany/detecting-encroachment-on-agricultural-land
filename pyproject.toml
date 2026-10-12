@@ -1,0 +1,41 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "kemet1-encroachment"
+version = "2.0.0"
+description = "Detecting building encroachment on Nile Delta farmland from Sentinel-2 change features"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "numpy>=1.26", "scipy>=1.11", "pandas>=2.0", "scikit-learn==1.7.2", "joblib>=1.3",
+    "rasterio>=1.3", "matplotlib>=3.8", "requests>=2.31",
+    "fastapi>=0.110", "uvicorn>=0.27", "python-multipart>=0.0.9",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "httpx>=0.27", "ruff==0.16.8"]
+
+[project.scripts]
+kemet1 = "encroachment.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["encroachment*"]
+
+[tool.setuptools.package-data]
+encroachment = ["templates/*.html", "web/static/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+filterwarnings = ["ignore::DeprecationWarning", "ignore::UserWarning"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+extend-exclude = ["archive", "docs", "*.md"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]
+ignore = ["E501", "B008"]  # B008: FastAPI File(...) defaults

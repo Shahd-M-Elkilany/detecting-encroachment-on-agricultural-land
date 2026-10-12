@@ -79,7 +79,7 @@
 
 <header>
   <div class="logo">KEMET<span class="logo-dot">1</span></div>
-  <p>Agricultural Encroachment Detector &mdash; Random Forest Model v5</p>
+  <p>Agricultural Encroachment Detector &mdash; model v2</p>
 </header>
 
 <div class="api-bar">
@@ -119,20 +119,20 @@
     </div>
   </div>
   <div class="metrics">
-    <div class="metric"><div class="metric-value" id="m-fusion"></div><div class="metric-label">Fusion Score</div></div>
-    <div class="metric"><div class="metric-value" id="m-rf"></div><div class="metric-label">RF Probability</div></div>
+    <div class="metric"><div class="metric-value" id="m-fusion"></div><div class="metric-label">Mean NDVI loss</div></div>
+    <div class="metric"><div class="metric-value" id="m-rf"></div><div class="metric-label">Probability</div></div>
     <div class="metric"><div class="metric-value" id="m-clusters"></div><div class="metric-label">Clusters Detected</div></div>
     <div class="metric"><div class="metric-value" id="m-area"></div><div class="metric-label">Area (feddan)</div></div>
     <div class="metric"><div class="metric-value" id="m-m2"></div><div class="metric-label">Area (m2)</div></div>
   </div>
   <div class="img-grid">
     <div class="img-card"><img id="img-before" src="" alt="Before" /><div class="img-card-label">BEFORE (2024)</div></div>
-    <div class="img-card"><img id="img-after" src="" alt="After" /><div class="img-card-label">AFTER (2025) -- violations in orange</div></div>
+    <div class="img-card"><img id="img-after" src="" alt="After" /><div class="img-card-label">AFTER (2025) -- change clusters, red = strongest</div></div>
   </div>
   <div class="coords">Centre: <span id="coords-text"></span> &mdash; <a id="coords-link" href="#" target="_blank">Open in Google Maps</a></div>
 </div>
 
-<footer>KEMET1 &bull; Graduation Project &bull; Random Forest v5 &bull; Val AUC 0.861</footer>
+<footer>KEMET1 &bull; Graduation Project &bull; logistic model v2 &bull; cross-validated AUC 0.90</footer>
 
 <script>
   const fileBefore = document.getElementById('file-before');
@@ -169,7 +169,7 @@
     if (!af) { status.textContent = 'Please select an After image first.';  return; }
 
     btn.disabled = true;
-    status.innerHTML = '<span class="spinner"></span> Running RF inference...';
+    status.innerHTML = '<span class="spinner"></span> Scoring the site...';
     document.getElementById('results').style.display = 'none';
 
     const form = new FormData();
@@ -191,7 +191,7 @@
       document.getElementById('risk-label').textContent = d.risk_level + ' Risk';
       document.getElementById('risk-sub').textContent   = cfg.sub;
 
-      document.getElementById('m-fusion').textContent   = d.fusion_score.toFixed(3);
+      document.getElementById('m-fusion').textContent   = d.mean_ndvi_loss.toFixed(3);
       document.getElementById('m-rf').textContent       = (d.rf_prob * 100).toFixed(1) + '%';
       document.getElementById('m-clusters').textContent = d.clusters;
       document.getElementById('m-area').textContent     = d.area_feddan.toLocaleString();
