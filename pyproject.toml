@@ -35,7 +35,7 @@ filterwarnings = ["ignore::DeprecationWarning", "ignore::UserWarning"]
 [tool.ruff]
 line-length = 120
 target-version = "py310"
-extend-exclude = ["archive", "docs", "*.md"]
+extend-exclude = ["archive", "docs", "*.md", "*.ipynb"]
 
 [tool.ruff.lint.per-file-ignores]
 "pipeline/**" = ["UP", "E702", "B905"]  # team code kept close to its original form

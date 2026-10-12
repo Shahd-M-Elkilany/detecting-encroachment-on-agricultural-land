@@ -35,7 +35,7 @@ OSCD_BANDS = ["B02", "B03", "B04", "B08", "B11"]
 CHANNELS = {"rgb": [2, 1, 0], "msi5": [2, 1, 0, 3, 4]}  # indices into the 5-band stacks
 OSCD_URLS = {
     "Onera Satellite Change Detection dataset - Images.zip": "https://partage.imt.fr/index.php/s/gKRaWgRnLMfwMGo/download",
-    "Onera Satellite Change Detection dataset - Train Labels.zip": "https://partage.mines-telecom.fr/index.php/s/2D6n03k58ygBSpu/download",
+    "Onera Satellite Change Detection dataset - Train Labels.zip": "https://partage.imt.fr/index.php/s/2D6n03k58ygBSpu/download",
     "Onera Satellite Change Detection dataset - Test Labels.zip": "https://partage.imt.fr/index.php/s/gpStKn4Mpgfnr63/download",
 }
 MULTI_SCALE_WEIGHTS = [0.5, 0.5, 0.5, 0.8, 1.0]  # ChangeFormer's own training setting
@@ -48,19 +48,24 @@ def download_oscd(root: str) -> str:
     os.makedirs(root, exist_ok=True)
     for name, url in OSCD_URLS.items():
         folder = os.path.join(root, name[:-4])
-        if os.path.isdir(folder):
+        if os.path.isdir(folder) and os.listdir(folder):
             continue
         path = os.path.join(root, name)
+        if os.path.exists(path) and not zipfile.is_zipfile(path):
+            os.remove(path)  # left over from an interrupted download
         if not os.path.exists(path):
             print("downloading", name, flush=True)
-            urllib.request.urlretrieve(url, path)
+            try:
+                urllib.request.urlretrieve(url, path)
+            except Exception:
+                if os.path.exists(path):
+                    os.remove(path)
+                raise
         with zipfile.ZipFile(path) as z:
-            z.extractall(root)
-        # Some archives contain the folder, some only its contents.
-        if not os.path.isdir(folder):
-            os.makedirs(folder, exist_ok=True)
-            with zipfile.ZipFile(path) as z:
-                z.extractall(folder)
+            names = z.namelist()
+            # Some archives contain the folder, some only its contents.
+            target = root if any(n.startswith(name[:-4] + "/") for n in names) else folder
+            z.extractall(target)
     return root
 
 
