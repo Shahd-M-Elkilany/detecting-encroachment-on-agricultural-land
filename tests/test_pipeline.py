@@ -108,3 +108,18 @@ def test_readmes_quote_the_pipeline_evaluation():
         text = readme.read_text(encoding="utf-8")
         for snippet in expected:
             assert snippet in text, (readme.name, snippet)
+
+
+def test_model_comparison_reproduces_and_matches_the_readme(tmp_path):
+    import compare_models
+
+    committed = json.loads((ROOT / "results" / "model_comparison.json").read_text())
+    assert compare_models.compare(out=tmp_path / "comparison.json") == committed
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    for name, m in committed["methods"].items():
+        lo, hi = m["test_auc_ci95"]
+        t = m["test_at_dev_threshold"]
+        line = next(row for row in readme.splitlines() if row.startswith(f"| {name.split(' (')[0]}"))
+        assert f"{m['dev_auc']:.2f}" in line, (name, line)
+        assert f"{m['test_auc']:.2f}" in line and f"({lo:.2f} to {hi:.2f})" in line, (name, line)
+        assert f"{t['precision']:.2f} / {t['recall']:.2f}" in line, (name, line)

@@ -67,8 +67,13 @@ def load_pair(before_path: Path, after_path: Path):
     return t1, t2, meta
 
 
-def analyse(t1: np.ndarray, t2: np.ndarray, meta: dict) -> dict:
-    """Steps 04-07 plus the Step 08 alert scoring, without writing any files."""
+def analyse(t1: np.ndarray, t2: np.ndarray, meta: dict, change_prob: np.ndarray | None = None) -> dict:
+    """Steps 04-07 plus the Step 08 alert scoring, without writing any files.
+
+    ``change_prob`` (H x W, 0-1) replaces the Step 05 rule with an external change
+    detector, such as ChangeFormer run on the matching RGB images: pixels above
+    0.5 form the change map and the probability is the change confidence.
+    """
     from src.step_04_spectral_indices.compute_indices import run as step04
     from src.step_05_change_detection.detect_changes import run as step05
     from src.step_06_agriculture_segmentation.segment_agriculture import run as step06
@@ -76,7 +81,11 @@ def analyse(t1: np.ndarray, t2: np.ndarray, meta: dict) -> dict:
     from src.step_08_final_output.generate_output import _compute_red_score, _extract_regions
 
     s04 = step04(t1, t2, meta, meta)
-    s05 = step05(t1, t2, meta)
+    if change_prob is None:
+        s05 = step05(t1, t2, meta)
+    else:
+        prob = np.asarray(change_prob, dtype=np.float32)
+        s05 = {"change_map": (prob > 0.5).astype(np.uint8), "change_confidence": prob, "meta": meta}
     s06 = step06(t1, meta)
     s07 = step07(t2, s05["change_map"], s06["agri_mask"], meta, t1_image=t1)
     red_score = _compute_red_score(s05["change_confidence"], s04["spectral_signal"], s05["change_map"])

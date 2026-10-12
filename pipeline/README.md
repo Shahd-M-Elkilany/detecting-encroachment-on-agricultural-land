@@ -28,7 +28,11 @@ datasets behind each pretrained model are listed in [`docs/datasets.md`](docs/da
 The deep models expect raw Sentinel-2 bands or RGB. The project's 300 tiles carry six spectral indices instead,
 which those models were never trained on, so on this data each step uses the spectral rule shown in the last
 column. Every result below comes from that configuration. With raw imagery and the weights in `weights/`, the
-same code runs the deep models; that configuration has not been evaluated.
+same code runs the deep models.
+
+ChangeFormer was also tested on its own and as Step 05, on Sentinel-2 colour images downloaded for all 300 sites:
+it scores at chance (test AUC 0.55 alone, 0.49 inside the pipeline), because a model trained on 0.5 m aerial
+photographs does not see buildings at 10 m. See [`changeformer/README.md`](changeformer/README.md).
 
 ## How well it ranks sites
 
@@ -94,9 +98,9 @@ image from about a year earlier, so seasonal change is not mistaken for building
 
 ## Limitations
 
-- **Not validated with its deep models.** The numbers above are for the spectral-rule configuration; the deep
-  models were pretrained elsewhere (Landsat clouds, 0.5 m aerial change pairs, natural-image segmentation) and
-  were not fine-tuned on Nile Delta imagery.
+- **Pretrained deep models do not transfer.** They were trained elsewhere (Landsat clouds, 0.5 m aerial change
+  pairs, natural-image segmentation) and not fine-tuned on Nile Delta imagery; ChangeFormer, the one tested, scores
+  at chance on these sites.
 - **Close to the labelling rule.** Steps 06 and 07 use NDVI and NDBI thresholds similar to those that define the
   automatic labels, so agreement with the labels overstates real accuracy, for this model even more than for the
   classifier.
@@ -109,6 +113,8 @@ run.py                  command line: test, single pair, classifier mode, Earth 
 run_full_pipeline.py    the pipeline on KEMET1 index tiles (one function per stage, no files written by analyse())
 pipeline.py             FoodSecurityPipeline: the eight steps, classifier mode, temporal mode
 evaluate_pipeline.py    scores the pipeline against the labels and draws its figures
+compare_models.py       scores every model (classifiers, pipeline, ChangeFormer) on the same sites
+changeformer/           Sentinel-2 colour download and the ChangeFormer experiment
 config/settings.py      thresholds, model names and paths for every step
 src/step_01 ... step_08 one module per step
 src/temporal/           dated image archive for the temporal mode

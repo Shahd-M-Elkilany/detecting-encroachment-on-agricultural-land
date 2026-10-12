@@ -28,7 +28,15 @@ REPORT = ROOT / "results" / "pipeline_evaluation.json"
 FIELDS = ["site", "regions", "red_ha", "building_ha", "yellow_ha", "changed_pct", "agri_pct"]
 
 
-def score(tiles: Path, out: Path = SCORES, sites: list[str] | None = None) -> Path:
+def score(
+    tiles: Path,
+    out: Path = SCORES,
+    sites: list[str] | None = None,
+    change_dir: Path | None = None,
+    variant: str = "pct_x1",
+) -> Path:
+    """Run the pipeline on every site. With ``change_dir`` (ChangeFormer outputs from
+    changeformer/run_changeformer.py), Step 05 uses ChangeFormer's change probability."""
     sys.path.insert(0, str(HERE))
     from run_full_pipeline import analyse, load_pair, quiet
 
@@ -44,7 +52,10 @@ def score(tiles: Path, out: Path = SCORES, sites: list[str] | None = None) -> Pa
         if site in done:
             continue
         t1, t2, meta = load_pair(tiles / f"{site}_before_2024.tif", tiles / f"{site}_after_2025.tif")
-        done[site] = {"site": site, **analyse(t1, t2, meta)["summary"]}
+        prob = None
+        if change_dir is not None:
+            prob = np.load(change_dir / f"{site}.npz")[variant].astype(np.float32) / 255
+        done[site] = {"site": site, **analyse(t1, t2, meta, change_prob=prob)["summary"]}
         quiet()
         with out.open("w", newline="") as f:
             w = csv.DictWriter(f, FIELDS)
@@ -215,13 +226,15 @@ def main() -> None:
     s = sub.add_parser("score", help="run the pipeline on every labelled site (needs the tiles)")
     s.add_argument("--tiles", type=Path, default=ROOT / "data" / "tiles")
     s.add_argument("--out", type=Path, default=SCORES)
+    s.add_argument("--changeformer", type=Path, default=None, help="folder of ChangeFormer .npz maps (Step 05)")
+    s.add_argument("--variant", default="pct_x1", help="which ChangeFormer map to use")
     sub.add_parser("report", help="compare the scores with the labels")
     f = sub.add_parser("figures", help="draw the README figures for the pipeline")
     f.add_argument("--tiles", type=Path, default=None, help="tile folder; enables the example maps")
     f.add_argument("--out", type=Path, default=ROOT / "docs" / "figures")
     args = parser.parse_args()
     if args.cmd == "score":
-        score(args.tiles, args.out)
+        score(args.tiles, args.out, change_dir=args.changeformer, variant=args.variant)
     elif args.cmd == "figures":
         sys.path.insert(0, str(ROOT))
         print(fig_two_models(args.out))

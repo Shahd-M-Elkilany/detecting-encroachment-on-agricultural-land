@@ -19,8 +19,8 @@ the team's monitoring backend.
 
 <sub>Three of the 45 held-out test sites, as the classifier sees them. Top: a correct High alarm, with several hectares of fields turned
 built-up. Middle: a false alarm, where vegetation fell across much of the tile, most likely harvest or fallow timing.
-Bottom: a miss in a reclaimed-desert landscape, where new irrigated land elsewhere in the tile (the green
-circle) outweighs about 6 ha of conversion in the tile-wide statistics.</sub>
+Bottom: a miss in a reclaimed-desert landscape, where fields elsewhere in the tile growing greener (the circle,
+mean NDVI 0.48 → 0.70) outweigh about 6 ha of conversion in the tile-wide statistics.</sub>
 
 ## The two models at a glance
 
@@ -72,7 +72,8 @@ The team designed the pipeline around pretrained deep models: a U-Net for clouds
 SegFormer for farmland and YOLOv8 with SAM for buildings. The project's tiles carry six spectral indices rather
 than raw bands, which those models were not trained on, so on this data each step runs the spectral rule it falls
 back to (for example NDVI > 0.2 for farmland, an NDBI rise for buildings). The results below are for that
-configuration; details and the per-step table are in [`pipeline/README.md`](pipeline/README.md).
+configuration; details and the per-step table are in [`pipeline/README.md`](pipeline/README.md). The deep change
+detector itself was tested separately on matching colour images, [below](#does-the-deep-change-detector-help).
 
 ![The pipeline's map next to the 2025 image for the three example sites](docs/figures/pipeline_examples.png)
 
@@ -93,6 +94,39 @@ a site. In classifier mode (`run.py --kemet1`) the two work together: the classi
 at risk and the pipeline maps the converted fields.
 
 ![ROC curves of both models on the 45 test sites](docs/figures/two_models_roc.png)
+
+## Does the deep change detector help?
+
+The pipeline was designed around ChangeFormer, a transformer change detector, in Step 05. To test that design
+directly, the Sentinel-2 colour images behind all 300 tiles were downloaded on the same pixel grid, and the
+published ChangeFormerV6 checkpoint trained on LEVIR-CD (F1 ≈ 0.90 on its own test set, re-checked here) was run
+on every pair, at native resolution and upsampled 2× and 4×. Every method is scored against the same labels and
+the same 45 test sites ([`results/model_comparison.json`](results/model_comparison.json)):
+
+| Method | Development AUC | Test AUC (95 % CI) | Test precision / recall |
+| --- | ---: | ---: | ---: |
+| Logistic regression (v2) | 0.88 | **0.97** (0.91 to 1.00) | 0.67 / 0.91 |
+| Random Forest (v1) | 0.78 | 0.88 (0.72 to 0.99) | 0.50 / 0.82 |
+| 8-step pipeline, spectral rule in Step 05 | 0.74 | 0.81 (0.67 to 0.93) | 0.38 / 0.91 |
+| ChangeFormer alone (best setting on development) | 0.54 | 0.55 (0.38 to 0.73) | 0.24 / 1.00 |
+| 8-step pipeline, ChangeFormer in Step 05 | 0.50 | 0.49 (0.45 to 0.50) | 0.24 / 1.00 |
+
+<sub>Development AUC for the two classifiers is out-of-fold. Precision and recall use the threshold with the best F1 on
+the development sites; a precision of 0.24 with recall 1.00 means flagging every test site. ChangeFormer at 4×
+upsampling, run on the test sites only, scores 0.51.</sub>
+
+![ROC curves of all five methods on the 45 test sites](docs/figures/all_models_roc.png)
+
+ChangeFormer does not separate encroached from intact sites in any configuration. The checkpoint works (it
+reproduces its authors' predictions on LEVIR-CD exactly); the problem is the domain gap. LEVIR-CD is 0.5 m aerial
+imagery, where a house covers hundreds of pixels; at Sentinel-2's 10 m it is smaller than one pixel, and the
+model sees almost no change anywhere:
+
+![Sentinel-2 pairs and ChangeFormer's change probability at three scales](docs/figures/changeformer_examples.png)
+
+For this sensor, the spectral change features carry the signal. A deep detector would need to be trained or
+fine-tuned on Sentinel-2 change pairs, or applied to very-high-resolution imagery of the sites the classifier flags.
+Method and reproduction: [`pipeline/changeformer/README.md`](pipeline/changeformer/README.md).
 
 ## What the labels are
 
@@ -155,7 +189,7 @@ cd detecting-encroachment-on-agricultural-land
 pip install -e ".[dev]"
 
 make reproduce          # train, evaluate both models and redraw every figure from committed data (~2 min)
-pytest                  # 47 tests, no satellite tiles needed
+pytest                  # 48 tests, no satellite tiles needed
 make pipeline-demo      # the 8-step pipeline on a synthetic image pair
 ```
 
@@ -192,8 +226,9 @@ encroachment/          the package
   cli.py               the kemet1 command
 data/                  labels.json, features.csv (300 sites x 44 features + coordinates)
 models/                the trained model and its metadata (training sites, held-out sites)
-pipeline/              the 8-step pipeline: run.py, one module per step, evaluate_pipeline.py
-results/               evaluation.json, pipeline_evaluation.json and pipeline_scores.csv; v1/ keeps the original results
+pipeline/              the 8-step pipeline: run.py, one module per step, evaluate_pipeline.py, compare_models.py
+  changeformer/        Sentinel-2 colour download and the ChangeFormer experiment
+results/               evaluation.json, pipeline and ChangeFormer scores, model_comparison.json; v1/ keeps the original results
 docs/                  data and model notes, figures, an example report, the team's project documents
 tests/                 unit, integration and consistency tests
 scripts/               an example Earth Engine export of the six indices
@@ -202,14 +237,15 @@ archive/               earlier stages: v1 scripts, a multi-date classifier, data
 
 ## Testing
 
-`pytest` runs 47 tests in about ten seconds. Besides unit tests on synthetic tiles, they check that the shipped
+`pytest` runs 48 tests in under a minute. Besides unit tests on synthetic tiles, they check that the shipped
 model reproduces the reported test AUC from the committed feature table, that retraining gives the same
 coefficients, that the test split is the same 45 sites v1 was evaluated on, that the labels are exactly the
 documented rule, that the alarm thresholds are the ones chosen on development data, that every number in
 this README matches `results/evaluation.json`, and that the web API scores a GeoTIFF pair end to end. For the
 pipeline, they check that it outlines a planted conversion and stays quiet on an unchanged pair, that a full
 run writes every Step 08 output, that its classifier mode agrees with the package, and that its evaluation
-reproduces from `results/pipeline_scores.csv`. GitHub Actions runs them with lint on every push.
+reproduces from `results/pipeline_scores.csv`; the five-method comparison, ChangeFormer included, is recomputed
+from the committed scores and checked against the table above. GitHub Actions runs them with lint on every push.
 
 The feature code was also checked against the real data: run on all 300 tile pairs, it reproduces the
 committed feature table to within 5 × 10⁻⁶ and the labelling inputs exactly.
@@ -220,10 +256,10 @@ committed feature table to within 5 × 10⁻⁶ and the labelling inputs exactly
 - **Seasonal confusion.** Harvest or fallow timing can mimic conversion; the one High false alarm on the test
   sites is most likely a tile-wide harvest.
 - **Tile-wide features.** The model sees statistics of the whole 684 ha tile, so vegetation gains elsewhere
-  (newly irrigated land, for example) can mask a few hectares of conversion, as in the missed example.
+  (a field growing greener, for example) can mask a few hectares of conversion, as in the missed example.
 - **One region's spatial fold is weak.** Holding out the north-east (fold 5, 6 positives) gives AUC 0.70.
-- **The pipeline's deep models are unvalidated.** On the index tiles it runs spectral rules; the U-Net,
-  ChangeFormer, SegFormer and YOLOv8 + SAM configuration needs raw imagery and has not been evaluated.
+- **Pretrained deep models do not transfer to 10 m imagery.** ChangeFormer (LEVIR-CD) scores at chance on these
+  sites; SegFormer and YOLOv8 + SAM, which also expect high-resolution RGB, have not been evaluated.
 - **Two dates only, 10 m pixels.** Single houses are below what Sentinel-2 resolves; the cluster minimum is
   0.5 ha.
 
