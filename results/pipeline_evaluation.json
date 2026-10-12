@@ -1,0 +1,42 @@
+{
+  "score": "red area in hectares (confirmed encroachment regions from Step 08)",
+  "mode": "pre-computed index tiles: Steps 02-03 skipped, Steps 05-07 use their spectral rules",
+  "sites": 300,
+  "auc_all_sites": 0.7457,
+  "auc_all_sites_region_count": 0.6804,
+  "development": {
+    "auc": 0.7383,
+    "threshold_ha": 1.815,
+    "at_threshold": {
+      "threshold": 1.815,
+      "tp": 53,
+      "fp": 68,
+      "fn": 14,
+      "tn": 120,
+      "precision": 0.438,
+      "recall": 0.791
+    }
+  },
+  "test": {
+    "sites": 45,
+    "positives": 11,
+    "auc": 0.8102,
+    "auc_ci95": [
+      0.6737,
+      0.9314
+    ],
+    "at_threshold": {
+      "threshold": 1.815,
+      "tp": 10,
+      "fp": 16,
+      "fn": 1,
+      "tn": 18,
+      "precision": 0.3846,
+      "recall": 0.9091
+    }
+  },
+  "sites_with_any_red_region": {
+    "positives": 76,
+    "negatives": 163
+  }
+}
