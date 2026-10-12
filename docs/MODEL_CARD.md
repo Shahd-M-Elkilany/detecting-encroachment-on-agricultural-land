@@ -39,7 +39,7 @@ documented baseline for the same dataset.
 ## Known failure modes
 
 - Tile-wide harvest or fallow between the two dates (false alarms).
-- Construction on land that was already bare (misses).
+- A few hectares of conversion masked by vegetation gains elsewhere in the tile (misses).
 - The north-eastern region is the weakest under spatial cross-validation (AUC 0.70).
 
 ## Reproduce

@@ -58,4 +58,5 @@ imagery or field visits.
 - Neighbouring sites can share land-cover patterns, so random splits are optimistic; the spatial
   cross-validation in the README is the better estimate for new regions.
 - A tile-wide harvest or fallow between the two dates looks like vegetation loss.
-- Building on land that was already bare in 2024 barely changes NDVI and is under-detected.
+- Building on land that was already bare in 2024 does not meet the rule's NDVI condition, so the labels
+  themselves do not count it as encroachment.

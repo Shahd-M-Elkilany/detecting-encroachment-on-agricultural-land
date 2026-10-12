@@ -4,7 +4,7 @@
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue)
 ![scikit-learn](https://img.shields.io/badge/scikit--learn-1.7-orange)
 
-Egypt loses farmland in the Nile Delta to unlicensed building every year. KEMET1
+Building on farmland is a long-running problem in Egypt's Nile Delta. KEMET1
 compares two Sentinel-2 images of the same 2.6 km site, one from 2024 and one
 from 2025, and estimates how likely it is that farmland was built over. It ranks
 sites for inspection, outlines where the change happened and produces a report,
@@ -13,8 +13,9 @@ a web app and cases for the team's monitoring backend.
 ![Three test sites: a correct alarm, a false alarm and a miss](docs/figures/examples.png)
 
 <sub>Three of the 45 held-out test sites. Top: a correct High alarm, with several hectares of fields turned
-built-up. Middle: a false alarm, where harvest timing removed vegetation across the whole tile. Bottom: a miss
-on reclaimed desert land, where the change happens on ground that was never green.</sub>
+built-up. Middle: a false alarm, where vegetation fell across much of the tile, most likely harvest or fallow timing.
+Bottom: a miss in a reclaimed-desert landscape, where new irrigated land elsewhere in the tile (the green
+circle) outweighs about 6 ha of conversion in the tile-wide statistics.</sub>
 
 ## Results
 
@@ -164,8 +165,9 @@ committed feature table to within 5 × 10⁻⁶ and the labelling inputs exactly
 
 - **Automatic labels.** See above. This is the main limitation and the main next step.
 - **Seasonal confusion.** Harvest or fallow timing can mimic conversion; the one High false alarm on the test
-  sites is a tile-wide harvest.
-- **Desert reclamation.** Building on land that was never green barely moves NDVI, so it is easy to miss.
+  sites is most likely a tile-wide harvest.
+- **Tile-wide features.** The model sees statistics of the whole 684 ha tile, so vegetation gains elsewhere
+  (newly irrigated land, for example) can mask a few hectares of conversion, as in the missed example.
 - **One region's spatial fold is weak.** Holding out the north-east (fold 5, 6 positives) gives AUC 0.70.
 - **Two dates only, 10 m pixels.** Single houses are below what Sentinel-2 resolves; the cluster minimum is
   0.5 ha.
