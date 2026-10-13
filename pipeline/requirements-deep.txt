@@ -1,0 +1,12 @@
+# Deep-learning models for the 8-step pipeline on raw Sentinel-2 imagery.
+# Not needed for the KEMET1 index tiles, the tests or the evaluation (see ../pyproject.toml).
+torch>=2.0
+torchvision>=0.15
+segmentation-models-pytorch>=0.3.3   # Step 02: U-Net + ResNet34 cloud detection
+transformers>=4.30                   # Step 06: SegFormer-B4 agriculture segmentation
+ultralytics>=8.0                     # Step 07: YOLOv8-seg building detection
+segment-anything>=1.0                # Step 07: SAM refinement
+einops>=0.6                          # Step 05: ChangeFormer dependency
+earthengine-api>=0.1.380             # Step 01: Google Earth Engine download
+geemap>=0.30
+geopy>=2.4                           # Step 08: place names for regions

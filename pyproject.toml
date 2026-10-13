@@ -15,7 +15,8 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8", "httpx>=0.27", "ruff==0.16.8"]
+pipeline = ["opencv-python-headless>=4.8", "folium>=0.15"]
+dev = ["pytest>=8", "httpx>=0.27", "ruff==0.16.8", "opencv-python-headless>=4.8", "folium>=0.15"]
 
 [project.scripts]
 kemet1 = "encroachment.cli:main"
@@ -34,7 +35,10 @@ filterwarnings = ["ignore::DeprecationWarning", "ignore::UserWarning"]
 [tool.ruff]
 line-length = 120
 target-version = "py310"
-extend-exclude = ["archive", "docs", "*.md"]
+extend-exclude = ["archive", "docs", "*.md", "*.ipynb"]
+
+[tool.ruff.lint.per-file-ignores]
+"pipeline/**" = ["UP", "E702", "B905"]  # team code kept close to its original form
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP"]

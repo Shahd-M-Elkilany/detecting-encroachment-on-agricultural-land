@@ -1,0 +1,178 @@
+{
+  "labels": "automatic NDVI/NDBI rule (the ArcGIS-derived labels in data/labels.json)",
+  "development_sites": 255,
+  "test_sites": 45,
+  "test_positives": 11,
+  "changeformer_variant_search_dev_auc": {
+    "fixed_x1 / mean_prob": 0.5429,
+    "fixed_x1 / changed_farmland_ha": 0.5075,
+    "pct_x1 / mean_prob": 0.5293,
+    "pct_x1 / changed_farmland_ha": 0.5014,
+    "pct_x2 / mean_prob": 0.4598,
+    "pct_x2 / changed_farmland_ha": 0.4133,
+    "chosen_on_development": "fixed_x1 / mean_prob",
+    "oscd_finetuned": {
+      "oscd_msi5 / mean_prob": 0.8276,
+      "oscd_msi5 / changed_farmland_ha": 0.8241,
+      "oscd_rgb / mean_prob": 0.8302,
+      "oscd_rgb / changed_farmland_ha": 0.8313,
+      "chosen_on_development": "oscd_rgb / changed_farmland_ha"
+    },
+    "pipeline_step05": {
+      "pct_x1": 0.497,
+      "pct_x2": 0.4834,
+      "chosen_on_development": "pct_x1"
+    },
+    "pipeline_step05_oscd": {
+      "oscd_msi5": 0.8615,
+      "oscd_rgb": 0.8634,
+      "chosen_on_development": "oscd_rgb"
+    }
+  },
+  "methods": {
+    "Logistic regression (v2)": {
+      "dev_auc": 0.8822,
+      "test_auc": 0.9733,
+      "test_auc_ci95": [
+        0.9091,
+        1.0
+      ],
+      "test_at_dev_threshold": {
+        "threshold": 0.2396,
+        "tp": 10,
+        "fp": 5,
+        "fn": 1,
+        "tn": 29,
+        "precision": 0.6667,
+        "recall": 0.9091
+      },
+      "sites_with_nonzero_score": 300
+    },
+    "Random Forest (v1)": {
+      "dev_auc": 0.7834,
+      "test_auc": 0.8824,
+      "test_auc_ci95": [
+        0.723,
+        0.992
+      ],
+      "test_at_dev_threshold": {
+        "threshold": 0.2895,
+        "tp": 9,
+        "fp": 9,
+        "fn": 2,
+        "tn": 25,
+        "precision": 0.5,
+        "recall": 0.8182
+      },
+      "sites_with_nonzero_score": 300
+    },
+    "8-step pipeline, spectral rule": {
+      "dev_auc": 0.7383,
+      "test_auc": 0.8102,
+      "test_auc_ci95": [
+        0.6737,
+        0.9314
+      ],
+      "test_at_dev_threshold": {
+        "threshold": 1.815,
+        "tp": 10,
+        "fp": 16,
+        "fn": 1,
+        "tn": 18,
+        "precision": 0.3846,
+        "recall": 0.9091
+      },
+      "sites_with_nonzero_score": 239
+    },
+    "ChangeFormer (LEVIR-CD weights)": {
+      "dev_auc": 0.5429,
+      "test_auc": 0.5521,
+      "test_auc_ci95": [
+        0.3784,
+        0.735
+      ],
+      "test_at_dev_threshold": {
+        "threshold": 0.0,
+        "tp": 11,
+        "fp": 34,
+        "fn": 0,
+        "tn": 0,
+        "precision": 0.2444,
+        "recall": 1.0
+      },
+      "sites_with_nonzero_score": 210
+    },
+    "ChangeFormer fine-tuned on OSCD": {
+      "dev_auc": 0.8313,
+      "test_auc": 0.9572,
+      "test_auc_ci95": [
+        0.877,
+        1.0
+      ],
+      "test_at_dev_threshold": {
+        "threshold": 15.0,
+        "tp": 10,
+        "fp": 4,
+        "fn": 1,
+        "tn": 30,
+        "precision": 0.7143,
+        "recall": 0.9091
+      },
+      "sites_with_nonzero_score": 286
+    },
+    "8-step pipeline, ChangeFormer in Step 05": {
+      "dev_auc": 0.497,
+      "test_auc": 0.4853,
+      "test_auc_ci95": [
+        0.4512,
+        0.5
+      ],
+      "test_at_dev_threshold": {
+        "threshold": 0.0,
+        "tp": 11,
+        "fp": 34,
+        "fn": 0,
+        "tn": 0,
+        "precision": 0.2444,
+        "recall": 1.0
+      },
+      "sites_with_nonzero_score": 6
+    },
+    "8-step pipeline, fine-tuned ChangeFormer in Step 05": {
+      "dev_auc": 0.8634,
+      "test_auc": 0.9786,
+      "test_auc_ci95": [
+        0.9229,
+        1.0
+      ],
+      "test_at_dev_threshold": {
+        "threshold": 6.3,
+        "tp": 10,
+        "fp": 1,
+        "fn": 1,
+        "tn": 33,
+        "precision": 0.9091,
+        "recall": 0.9091
+      },
+      "sites_with_nonzero_score": 204
+    }
+  },
+  "changeformer_4x_upsampled_test_sites_only": {
+    "pct_x4 / mean_prob": {
+      "test_auc": 0.508,
+      "test_auc_ci95": [
+        0.3061,
+        0.7164
+      ],
+      "sites_with_nonzero_score": 45
+    },
+    "pct_x4 / changed_farmland_ha": {
+      "test_auc": 0.5,
+      "test_auc_ci95": [
+        0.3102,
+        0.7028
+      ],
+      "sites_with_nonzero_score": 24
+    }
+  }
+}

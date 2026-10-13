@@ -1,4 +1,4 @@
-# Dependencies of the archived scripts (v1 scripts, 8-step pipeline, multi-temporal classifier).
+# Dependencies of the archived scripts (v1 scripts, multi-temporal classifier).
 # Not needed for the maintained package; see ../requirements.txt.
 # ============================================================
 # Food Security ML Pipeline — Dependencies

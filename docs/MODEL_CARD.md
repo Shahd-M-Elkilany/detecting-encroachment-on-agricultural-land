@@ -1,5 +1,8 @@
 # Model card: KEMET1 v2 encroachment model
 
+This card covers Model 1, the tile classifier. Model 2, the 8-step pipeline, is described and evaluated in
+[`../pipeline/README.md`](../pipeline/README.md).
+
 | | |
 | --- | --- |
 | File | `models/encroachment_logreg.joblib` (scikit-learn 1.7.2 pipeline), metadata in `models/encroachment_logreg.json` |
