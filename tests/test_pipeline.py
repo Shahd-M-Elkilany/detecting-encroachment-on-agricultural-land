@@ -116,10 +116,19 @@ def test_model_comparison_reproduces_and_matches_the_readme(tmp_path):
     committed = json.loads((ROOT / "results" / "model_comparison.json").read_text())
     assert compare_models.compare(out=tmp_path / "comparison.json") == committed
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    rows = {
+        "Logistic regression (v2)": "| Logistic regression (v2) |",
+        "Random Forest (v1)": "| Random Forest (v1) |",
+        "8-step pipeline, spectral rule": "| 8-step pipeline, spectral rule in Step 05 |",
+        "ChangeFormer (LEVIR-CD weights)": "| ChangeFormer alone, LEVIR-CD weights",
+        "ChangeFormer fine-tuned on OSCD": "| ChangeFormer fine-tuned on OSCD |",
+        "8-step pipeline, ChangeFormer in Step 05": "| 8-step pipeline, ChangeFormer in Step 05 (LEVIR-CD weights) |",
+        "8-step pipeline, fine-tuned ChangeFormer in Step 05": "| 8-step pipeline, fine-tuned ChangeFormer in Step 05 |",
+    }
     for name, m in committed["methods"].items():
         lo, hi = m["test_auc_ci95"]
         t = m["test_at_dev_threshold"]
-        line = next(row for row in readme.splitlines() if row.startswith(f"| {name.split(' (')[0]}"))
+        line = next(row for row in readme.splitlines() if row.startswith(rows[name]))
         assert f"{m['dev_auc']:.2f}" in line, (name, line)
         assert f"{m['test_auc']:.2f}" in line and f"({lo:.2f} to {hi:.2f})" in line, (name, line)
         assert f"{t['precision']:.2f} / {t['recall']:.2f}" in line, (name, line)

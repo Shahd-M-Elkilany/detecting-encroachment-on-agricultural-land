@@ -192,7 +192,7 @@ def figure(out_dir: Path = ROOT / "docs" / "figures") -> Path:
         "Random Forest (v1)": "#eb6834",
         "8-step pipeline, spectral rule": "#1baf7a",
         "ChangeFormer (LEVIR-CD weights)": "#6250d6",
-        "ChangeFormer fine-tuned on OSCD": "#d03b3b",
+        "ChangeFormer fine-tuned on OSCD": "#0b0b0b",
         "8-step pipeline, ChangeFormer in Step 05": "#eda100",
     }
     plt = _style()

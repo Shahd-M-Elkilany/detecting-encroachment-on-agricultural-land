@@ -11,6 +11,13 @@
     "pct_x2 / mean_prob": 0.4598,
     "pct_x2 / changed_farmland_ha": 0.4133,
     "chosen_on_development": "fixed_x1 / mean_prob",
+    "oscd_finetuned": {
+      "oscd_msi5 / mean_prob": 0.8276,
+      "oscd_msi5 / changed_farmland_ha": 0.8241,
+      "oscd_rgb / mean_prob": 0.8302,
+      "oscd_rgb / changed_farmland_ha": 0.8313,
+      "chosen_on_development": "oscd_rgb / changed_farmland_ha"
+    },
     "pipeline_step05": {
       "pct_x1": 0.497,
       "pct_x2": 0.4834,
@@ -89,6 +96,24 @@
         "recall": 1.0
       },
       "sites_with_nonzero_score": 210
+    },
+    "ChangeFormer fine-tuned on OSCD": {
+      "dev_auc": 0.8313,
+      "test_auc": 0.9572,
+      "test_auc_ci95": [
+        0.877,
+        1.0
+      ],
+      "test_at_dev_threshold": {
+        "threshold": 15.0,
+        "tp": 10,
+        "fp": 4,
+        "fn": 1,
+        "tn": 30,
+        "precision": 0.7143,
+        "recall": 0.9091
+      },
+      "sites_with_nonzero_score": 286
     },
     "8-step pipeline, ChangeFormer in Step 05": {
       "dev_auc": 0.497,

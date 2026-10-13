@@ -90,6 +90,28 @@ checkpoint on OSCD, 24 Sentinel-2 pairs at 10 m with hand-drawn urban-change mas
 [`data/tile_grids.json`](../../data/tile_grids.json), scores every site and reruns `compare_models.py`. The
 code is in [`finetune_oscd.py`](finetune_oscd.py).
 
+Training: 2,000 steps per version, batch 8, random 256-pixel crops (half of them centred on change), rotations,
+flips and date swaps, AdamW at 6 × 10⁻⁵ with linear decay, ChangeFormer's multi-scale cross-entropy with the change
+class weighted by the square root of its rarity. Both dates of a pair share one 2-98 % stretch per band, exactly
+as at inference.
+
+| | OSCD test F1 (change class) | KEMET1 development AUC | KEMET1 test AUC (95 % CI) |
+| --- | ---: | ---: | ---: |
+| LEVIR-CD weights, before fine-tuning | 0.01 | 0.54 | 0.55 (0.38 to 0.73) |
+| Fine-tuned, RGB | 0.48 | 0.83 | **0.96** (0.88 to 1.00) |
+| Fine-tuned, 5 bands (adds B8, B11) | 0.49 | 0.83 | |
+
+The RGB version scores the changed farmland area per site slightly better on the development sites (0.831 against
+0.828 for the 5-band version's best score), so it is the one reported; the test sites were scored once, after
+that choice ([`results/changeformer_oscd_test.json`](../../results/changeformer_oscd_test.json),
+[`results/model_comparison.json`](../../results/model_comparison.json)). Its OSCD F1 is in the range published
+for Sentinel-2 change networks on that dataset.
+
+Fine-tuning is what made the difference: the same architecture and starting weights go from chance to the level
+of the best classifier once they have seen 10 m Sentinel-2 change. The colour version never sees NDVI or NDBI, the
+indices the KEMET1 labels are computed from, so its agreement with the labels is independent evidence that both
+pick up real conversion to built-up land.
+
 ## Reproducing
 
 Needs an Earth Engine project, PyTorch, `timm`, `einops`, the ChangeFormer code and the checkpoint:

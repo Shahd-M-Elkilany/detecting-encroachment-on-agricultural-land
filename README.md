@@ -73,7 +73,7 @@ SegFormer for farmland and YOLOv8 with SAM for buildings. The project's tiles ca
 than raw bands, which those models were not trained on, so on this data each step runs the spectral rule it falls
 back to (for example NDVI > 0.2 for farmland, an NDBI rise for buildings). The results below are for that
 configuration; details and the per-step table are in [`pipeline/README.md`](pipeline/README.md). The deep change
-detector itself was tested separately on matching colour images, [below](#does-the-deep-change-detector-help).
+detector itself was tested separately on matching colour images, [below](#deep-learning-changeformer).
 
 ![The pipeline's map next to the 2025 image for the three example sites](docs/figures/pipeline_examples.png)
 
@@ -95,34 +95,34 @@ at risk and the pipeline maps the converted fields.
 
 ![ROC curves of both models on the 45 test sites](docs/figures/two_models_roc.png)
 
-## Does the deep change detector help?
+## Deep learning: ChangeFormer
 
-The pipeline was designed around ChangeFormer, a transformer change detector, in Step 05. To test that design
-directly, the Sentinel-2 colour images behind all 300 tiles were downloaded on the same pixel grid, and the
-published ChangeFormerV6 checkpoint trained on LEVIR-CD (F1 ≈ 0.90 on its own test set, re-checked here) was run
-on every pair, at native resolution and upsampled 2× and 4×. Every method is scored against the same labels and
-the same 45 test sites ([`results/model_comparison.json`](results/model_comparison.json)):
+The pipeline was designed around ChangeFormer, a transformer change detector, in Step 05. To test it, the
+Sentinel-2 colour images behind all 300 tiles were downloaded on the same pixel grid and ChangeFormerV6 was run on
+every pair, first with its published LEVIR-CD weights, then after fine-tuning on Sentinel-2 change data. Every
+method is scored against the same labels and the same 45 test sites
+([`results/model_comparison.json`](results/model_comparison.json)):
 
 | Method | Development AUC | Test AUC (95 % CI) | Test precision / recall |
 | --- | ---: | ---: | ---: |
 | Logistic regression (v2) | 0.88 | **0.97** (0.91 to 1.00) | 0.67 / 0.91 |
+| ChangeFormer fine-tuned on OSCD | 0.83 | **0.96** (0.88 to 1.00) | 0.71 / 0.91 |
 | Random Forest (v1) | 0.78 | 0.88 (0.72 to 0.99) | 0.50 / 0.82 |
 | 8-step pipeline, spectral rule in Step 05 | 0.74 | 0.81 (0.67 to 0.93) | 0.38 / 0.91 |
-| ChangeFormer alone (best setting on development) | 0.54 | 0.55 (0.38 to 0.73) | 0.24 / 1.00 |
-| 8-step pipeline, ChangeFormer in Step 05 | 0.50 | 0.49 (0.45 to 0.50) | 0.24 / 1.00 |
+| ChangeFormer alone, LEVIR-CD weights (best setting on development) | 0.54 | 0.55 (0.38 to 0.73) | 0.24 / 1.00 |
+| 8-step pipeline, ChangeFormer in Step 05 (LEVIR-CD weights) | 0.50 | 0.49 (0.45 to 0.50) | 0.24 / 1.00 |
 
 <sub>Development AUC for the two classifiers is out-of-fold. Precision and recall use the threshold with the best F1 on
-the development sites; a precision of 0.24 with recall 1.00 means flagging every test site. ChangeFormer at 4×
-upsampling, run on the test sites only, scores 0.51.</sub>
+the development sites; a precision of 0.24 with recall 1.00 means flagging every test site. LEVIR-CD ChangeFormer at
+4× upsampling, run on the test sites only, scores 0.51.</sub>
 
-![ROC curves of all five methods on the 45 test sites](docs/figures/all_models_roc.png)
+![ROC curves of all methods on the 45 test sites](docs/figures/all_models_roc.png)
 
-ChangeFormer does not separate encroached from intact sites in any configuration. The checkpoint works (it
-reproduces its authors' predictions on LEVIR-CD exactly); the problem is the domain gap. LEVIR-CD is 0.5 m aerial
-imagery, where a house covers hundreds of pixels; at Sentinel-2's 10 m it is smaller than one pixel, and the
-model sees almost no change anywhere:
+**Off the shelf, it fails.** The published checkpoint works (it reproduces its authors' predictions on LEVIR-CD
+exactly), but LEVIR-CD is 0.5 m aerial imagery, where a house covers hundreds of pixels; at Sentinel-2's 10 m it is
+smaller than one pixel, and the model sees almost no change anywhere:
 
-![Sentinel-2 pairs and ChangeFormer's change probability at three scales](docs/figures/changeformer_examples.png)
+![Sentinel-2 pairs and the LEVIR-CD ChangeFormer's change probability at three scales](docs/figures/changeformer_examples.png)
 
 The team's sliding-window idea, cutting 130 m windows and resizing them to LEVIR-CD's 0.5 m pixels, was tested too:
 on 33 windows centred on fields the labels mark as converted, ChangeFormer marked change in 1. Resizing enlarges
@@ -130,9 +130,13 @@ on 33 windows centred on fields the labels mark as converted, ChangeFormer marke
 
 ![A LEVIR-CD pair next to Sentinel-2 windows resized to 0.5 m](docs/figures/changeformer_sliding_window.png)
 
-For this sensor, the spectral change features carry the signal. A deep detector would need to be trained or
-fine-tuned on Sentinel-2 change pairs, or applied to genuinely sub-metre imagery (such as HORUS-1) of the sites the
-classifier flags.
+**Fine-tuned on Sentinel-2, it works.** Starting from the LEVIR-CD weights, ChangeFormer was fine-tuned for 2,000
+steps on OSCD, 14 Sentinel-2 image pairs at 10 m with hand-drawn urban-change masks, in a colour and a 5-band
+version ([notebook](pipeline/changeformer/finetune_oscd.ipynb), Colab T4). On OSCD's own 10 test pairs the
+change-class F1 rose from 0.01 to 0.48. On the KEMET1 sites, the colour version (chosen on the development sites)
+reaches a test AUC of 0.96, close to the logistic regression and above the Random Forest, with the best test
+precision of any method. It never sees NDVI or NDBI, the indices the labels are computed from, so its agreement
+with the labels is independent evidence that both capture real conversion to built-up land.
 Method and reproduction: [`pipeline/changeformer/README.md`](pipeline/changeformer/README.md).
 
 ## What the labels are
