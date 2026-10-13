@@ -296,5 +296,11 @@ Sentinel-2 L2A surface reflectance (Copernicus) via Google Earth Engine. The 300
 stored in the repository; [`docs/DATA.md`](docs/DATA.md) describes them and how to obtain them.
 
 KEMET1 began as a graduation project of a Data & AI team; the project report, presentation and dataset
-documents are in [`docs/project/`](docs/project). This repository, the v2 model and the package are
-maintained by [Shahd Elkilany](https://github.com/Shahd-M-Elkilany).
+documents are in [`docs/project/`](docs/project).
+
+## Contributors
+
+- [Shahd Elkilany](https://github.com/Shahd-M-Elkilany): maintainer; the `encroachment` package, the v2 model,
+  the evaluation, and the ChangeFormer experiments.
+- [Khaled Ramadan Ali](https://github.com/Khaled22ramadan): design of the 8-step pipeline
+  ([`pipeline/docs/design.md`](pipeline/docs/design.md)).
