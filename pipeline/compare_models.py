@@ -101,18 +101,27 @@ def scores() -> tuple[np.ndarray, np.ndarray, np.ndarray, dict, dict]:
             search["oscd_finetuned"]["chosen_on_development"] = chosen
             methods["ChangeFormer fine-tuned on OSCD"] = tuned[chosen][1]
 
-    pipe_candidates = {}
-    for path in sorted(RESULTS.glob("pipeline_changeformer_*.csv")):
-        rows = _read(path)
-        if len(rows) == len(sites):
-            s = by_site(rows, "red_ha")
-            auc = float(roc_auc_score(y[dev], s[dev])) if np.ptp(s[dev]) > 0 else 0.5
-            pipe_candidates[path.stem.removeprefix("pipeline_changeformer_")] = (auc, s)
-    if pipe_candidates:
-        chosen = max(pipe_candidates, key=lambda k: pipe_candidates[k][0])
-        search["pipeline_step05"] = {k: round(v[0], 4) for k, v in pipe_candidates.items()}
-        search["pipeline_step05"]["chosen_on_development"] = chosen
-        methods["8-step pipeline, ChangeFormer in Step 05"] = pipe_candidates[chosen][1]
+    for label, keep, key in (
+        ("8-step pipeline, ChangeFormer in Step 05", lambda v: not v.startswith("oscd_"), "pipeline_step05"),
+        (
+            "8-step pipeline, fine-tuned ChangeFormer in Step 05",
+            lambda v: v.startswith("oscd_"),
+            "pipeline_step05_oscd",
+        ),
+    ):
+        pipe_candidates = {}
+        for path in sorted(RESULTS.glob("pipeline_changeformer_*.csv")):
+            variant = path.stem.removeprefix("pipeline_changeformer_")
+            rows = _read(path)
+            if keep(variant) and len(rows) == len(sites):
+                s = by_site(rows, "red_ha")
+                auc = float(roc_auc_score(y[dev], s[dev])) if np.ptp(s[dev]) > 0 else 0.5
+                pipe_candidates[variant] = (auc, s)
+        if pipe_candidates:
+            chosen = max(pipe_candidates, key=lambda k: pipe_candidates[k][0])
+            search[key] = {k: round(v[0], 4) for k, v in pipe_candidates.items()}
+            search[key]["chosen_on_development"] = chosen
+            methods[label] = pipe_candidates[chosen][1]
     return y, dev, test, methods, search
 
 
@@ -193,6 +202,7 @@ def figure(out_dir: Path = ROOT / "docs" / "figures") -> Path:
         "8-step pipeline, spectral rule": "#1baf7a",
         "ChangeFormer (LEVIR-CD weights)": "#6250d6",
         "ChangeFormer fine-tuned on OSCD": "#0b0b0b",
+        "8-step pipeline, fine-tuned ChangeFormer in Step 05": "#8a8984",
         "8-step pipeline, ChangeFormer in Step 05": "#eda100",
     }
     plt = _style()

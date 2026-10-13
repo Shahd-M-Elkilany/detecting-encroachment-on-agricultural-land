@@ -30,9 +30,14 @@ which those models were never trained on, so on this data each step uses the spe
 column. Every result below comes from that configuration. With raw imagery and the weights in `weights/`, the
 same code runs the deep models.
 
-ChangeFormer was also tested on its own and as Step 05, on Sentinel-2 colour images downloaded for all 300 sites:
-it scores at chance (test AUC 0.55 alone, 0.49 inside the pipeline), because a model trained on 0.5 m aerial
-photographs does not see buildings at 10 m. See [`changeformer/README.md`](changeformer/README.md).
+ChangeFormer was also tested on its own and as Step 05, on Sentinel-2 colour images downloaded for all 300 sites.
+With its published LEVIR-CD weights it scores at chance (test AUC 0.55 alone, 0.49 inside the pipeline), because
+a model trained on 0.5 m aerial photographs does not see buildings at 10 m. **Fine-tuned on OSCD Sentinel-2 change
+pairs, it scores 0.96 alone, and as Step 05 it makes the pipeline the most accurate system in the project: test
+AUC 0.98, precision and recall 0.91.** See [`changeformer/README.md`](changeformer/README.md) and the
+[comparison](../README.md#deep-learning-changeformer).
+
+![The pipeline with the fine-tuned ChangeFormer as Step 05](../docs/figures/pipeline_finetuned_examples.png)
 
 ## How well it ranks sites
 

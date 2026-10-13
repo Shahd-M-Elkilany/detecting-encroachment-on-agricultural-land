@@ -22,6 +22,11 @@
       "pct_x1": 0.497,
       "pct_x2": 0.4834,
       "chosen_on_development": "pct_x1"
+    },
+    "pipeline_step05_oscd": {
+      "oscd_msi5": 0.8615,
+      "oscd_rgb": 0.8634,
+      "chosen_on_development": "oscd_rgb"
     }
   },
   "methods": {
@@ -132,6 +137,24 @@
         "recall": 1.0
       },
       "sites_with_nonzero_score": 6
+    },
+    "8-step pipeline, fine-tuned ChangeFormer in Step 05": {
+      "dev_auc": 0.8634,
+      "test_auc": 0.9786,
+      "test_auc_ci95": [
+        0.9229,
+        1.0
+      ],
+      "test_at_dev_threshold": {
+        "threshold": 6.3,
+        "tp": 10,
+        "fp": 1,
+        "fn": 1,
+        "tn": 33,
+        "precision": 0.9091,
+        "recall": 0.9091
+      },
+      "sites_with_nonzero_score": 204
     }
   },
   "changeformer_4x_upsampled_test_sites_only": {

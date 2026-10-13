@@ -10,7 +10,8 @@ the same 2.6 km site, one from 2024 and one from 2025, with two models:
 - **a tile classifier** (Random Forest in v1, regularised logistic regression in v2) that gives each site a
   probability of encroachment and ranks sites for inspection, and
 - **an 8-step pipeline** (cloud detection, change detection, farmland and building masks) that maps where the
-  change happened, pixel by pixel, as a red / yellow / green map.
+  change happened, pixel by pixel, as a red / yellow / green map. With a ChangeFormer transformer fine-tuned on
+  Sentinel-2 change data as its change detector, it is the most accurate system in the project.
 
 Both are evaluated against the same labels and test sites, and both feed site reports, a web app and cases for
 the team's monitoring backend.
@@ -28,8 +29,9 @@ mean NDVI 0.48 → 0.70) outweigh about 6 ha of conversion in the tile-wide stat
 | --- | --- | --- |
 | Question it answers | How likely is it that this site was encroached? | Where in the site did farmland change? |
 | Output | One probability per site → High / Medium / Low risk | Red / yellow / green map, outlined regions, GeoJSON |
-| Method | 44 band-difference statistics → logistic regression | Cloud, change, farmland and building steps → alert map |
-| Test-site AUC (45 sites) | **0.97** | 0.81 |
+| Method | 44 band-difference statistics → logistic regression | Fine-tuned ChangeFormer change map → farmland and building masks → alert map |
+| Test-site AUC (45 sites) | 0.97 | **0.98** (0.81 with the spectral-rule Step 05) |
+| Test precision / recall | 0.67 / 0.91 | **0.91 / 0.91** |
 | Code | [`encroachment/`](encroachment) | [`pipeline/`](pipeline) |
 
 The 300 sites carry automatic labels (see [what the labels are](#what-the-labels-are)). Every number in this
@@ -105,8 +107,9 @@ method is scored against the same labels and the same 45 test sites
 
 | Method | Development AUC | Test AUC (95 % CI) | Test precision / recall |
 | --- | ---: | ---: | ---: |
-| Logistic regression (v2) | 0.88 | **0.97** (0.91 to 1.00) | 0.67 / 0.91 |
-| ChangeFormer fine-tuned on OSCD | 0.83 | **0.96** (0.88 to 1.00) | 0.71 / 0.91 |
+| Logistic regression (v2) | 0.88 | 0.97 (0.91 to 1.00) | 0.67 / 0.91 |
+| 8-step pipeline, fine-tuned ChangeFormer in Step 05 | 0.86 | **0.98** (0.92 to 1.00) | **0.91 / 0.91** |
+| ChangeFormer fine-tuned on OSCD | 0.83 | 0.96 (0.88 to 1.00) | 0.71 / 0.91 |
 | Random Forest (v1) | 0.78 | 0.88 (0.72 to 0.99) | 0.50 / 0.82 |
 | 8-step pipeline, spectral rule in Step 05 | 0.74 | 0.81 (0.67 to 0.93) | 0.38 / 0.91 |
 | ChangeFormer alone, LEVIR-CD weights (best setting on development) | 0.54 | 0.55 (0.38 to 0.73) | 0.24 / 1.00 |
@@ -137,6 +140,19 @@ change-class F1 rose from 0.01 to 0.48. On the KEMET1 sites, the colour version 
 reaches a test AUC of 0.96, close to the logistic regression and above the Random Forest, with the best test
 precision of any method. It never sees NDVI or NDBI, the indices the labels are computed from, so its agreement
 with the labels is independent evidence that both capture real conversion to built-up land.
+
+**As Step 05 of the 8-step pipeline, it completes the original design.** ChangeFormer finds where the scene
+changed; the pipeline's farmland and built-up masks keep only changes from farmland to built-up land. The
+combination is the most accurate system here: on the 45 test sites it catches 10 of the 11 encroached sites with
+one false alarm. It also gets right both example sites the classifier gets wrong, the harvest false alarm and the missed
+conversion next to a greening field:
+
+![The pipeline with the fine-tuned ChangeFormer as Step 05 on the three example sites](docs/figures/pipeline_finetuned_examples.png)
+
+Two cautions. With 11 positive test sites, the differences between the top three methods (0.96 to 0.98) are well
+inside their confidence intervals. And the pipeline's farmland and built-up masks use NDVI and NDBI thresholds close
+to those of the labelling rule, so part of its agreement with the labels is shared design; the ChangeFormer row
+above, which sees colour only, is the cleaner test of the deep model.
 Method and reproduction: [`pipeline/changeformer/README.md`](pipeline/changeformer/README.md).
 
 ## What the labels are
